@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#102a43" />
+    <link rel="icon" type="image/png" href="./assets/images/msongola-secondary-school-logo.png" />
+    <link rel="apple-touch-icon" href="./assets/images/msongola-secondary-school-logo.png" />
+    <title>Msongola | Results Administration</title>
+    <link rel="stylesheet" href="./assets/styles.css" />
+  </head>
+  <body>
+    <main id="loginSection" class="login-layout">
+      <section class="login-brand">
+        <div class="login-school-brand">
+          <div class="school-logo school-logo-login">
+            <img src="./assets/images/msongola-secondary-school-logo.png" alt="Msongola Secondary School crest" />
+          </div>
+          <div class="login-school-copy">
+            <p class="eyebrow">MSONGOLA SECONDARY SCHOOL</p>
+            <p class="login-school-motto">Education is light</p>
+          </div>
+        </div>
+        <h1>Results, managed with care.</h1>
+        <p>Manage learner results and prepare clear SMS updates for parents and guardians.</p>
+        <div class="login-note">Parents do not log in. Result updates are sent to their registered phone numbers.</div>
+      </section>
+
+      <section class="login-card" aria-labelledby="loginTitle">
+        <p class="eyebrow">STAFF ACCESS</p>
+        <h2 id="loginTitle">Sign in to continue</h2>
+        <p class="muted">For administrators and academic staff only.</p>
+        <form id="loginForm">
+          <label for="email">Email address</label>
+          <input id="email" name="email" type="email" autocomplete="username" placeholder="name@school.org" required />
+
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required />
+
+          <button id="loginButton" class="login-submit-button" type="submit">
+            <span>Sign in to your workspace</span>
+            <span class="login-button-arrow" aria-hidden="true">→</span>
+          </button>
+        </form>
+        <p id="loginMessage" class="form-message" role="status" aria-live="polite"></p>
+        <p class="demo-hint">Development account: admin@msongola.com / admin123</p>
+      </section>
+      <footer class="developer-footer login-developer-footer">
+        <span>Developed By : Nassoro Amour Shekulamba</span>
+        <a href="mailto:nassoroamour63@gmail.com">Email: nassoroamour63@gmail.com</a>
+        <a href="tel:+255616957125">Phone Number: +255 616 957 125</a>
+      </footer>
+    </main>
+
+    <div id="appShell" class="app-shell hidden">
+      <aside class="sidebar">
+        <a class="brand" href="#" aria-label="Msongola administration home">
+          <span class="school-logo school-logo-sidebar">
+            <img src="./assets/images/msongola-secondary-school-logo.png" alt="" />
+          </span>
+          <span>Msongola<small>RESULTS ADMIN</small></span>
+        </a>
+
+        <div class="nav-caption">WORKSPACE</div>
+        <nav class="side-nav" aria-label="Main navigation">
+          <button class="nav-link active" type="button" data-view="overviewView">
+            <span aria-hidden="true">⌂</span> Overview
+          </button>
+          <button class="nav-link hidden" type="button" data-view="studentsView" data-academic-only>
+            <span aria-hidden="true">♙</span> Learners & results
+          </button>
+          <button class="nav-link hidden" type="button" data-view="reportsView" data-academic-only>
+            <span aria-hidden="true">▥</span> Results reports
+          </button>
+          <button class="nav-link" type="button" data-view="smsView" data-admin-only>
+            <span aria-hidden="true">▤</span> Parent SMS
+          </button>
+          <button class="nav-link" type="button" data-view="integrationView">
+            <span aria-hidden="true">⇄</span> Results integration
+          </button>
+          <button class="nav-link hidden" id="staffAccountsNav" type="button" data-view="staffAccountsView" data-admin-only>
+            <span aria-hidden="true">♧</span> Staff accounts
+          </button>
+          <button class="nav-link" type="button" data-view="profileView">
+            <span aria-hidden="true">◎</span> My profile
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="staff-avatar" id="staffInitials">A</div>
+          <div class="staff-details">
+            <strong id="staffName">Administrator</strong>
+            <span id="staffRole">School staff</span>
+          </div>
+          <button id="logoutButton" class="icon-button" type="button" aria-label="Sign out" title="Sign out">↪</button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div>
+            <p class="school-name-heading">Msongola Secondary School</p>
+            <p class="eyebrow">ACADEMIC OFFICE</p>
+            <h1 id="pageTitle">Overview</h1>
+          </div>
+          <div class="topbar-meta">
+            <span class="status-dot is-checking" id="backendConnectionStatus" role="img" aria-label="Checking server connection" title="Checking server connection" data-admin-only></span>
+            <span id="workspaceLabel">Staff workspace</span>
+            <span class="current-date" id="currentDate"></span>
+          </div>
+        </header>
+
+        <div id="appMessage" class="app-message hidden" role="status" aria-live="polite"></div>
+
+        <section id="overviewView" class="content-view">
+          <div class="welcome-row">
+            <div>
+              <h2>Good day, <span id="welcomeName">Administrator</span></h2>
+              <p id="welcomeDescription" class="muted">Here is the latest activity across the school system.</p>
+            </div>
+            <div class="welcome-actions">
+              <button id="refreshDashboardButton" class="button button-secondary" type="button">Refresh overview <span aria-hidden="true">↻</span></button>
+              <button id="dashboardPrimaryAction" class="button button-primary" type="button" data-open-view="staffAccountsView">Manage staff accounts <span aria-hidden="true">→</span></button>
+            </div>
+          </div>
+
+          <div id="adminOverviewPanel" class="role-dashboard hidden" data-role-dashboard="admin">
+            <div class="stat-grid">
+              <article class="stat-card">
+                <div class="stat-icon stat-icon-blue" aria-hidden="true">♧</div>
+                <div><p>Staff accounts</p><strong id="staffCount">—</strong></div>
+              </article>
+              <article class="stat-card">
+                <div class="stat-icon stat-icon-orange" aria-hidden="true">◷</div>
+                <div><p>SMS awaiting delivery</p><strong id="pendingSmsCount">—</strong></div>
+              </article>
+              <article class="stat-card">
+                <div class="stat-icon stat-icon-red" aria-hidden="true">!</div>
+                <div><p>Failed SMS</p><strong id="failedSmsCount">—</strong></div>
+              </article>
+              <article class="stat-card">
+                <div class="stat-icon stat-icon-purple" aria-hidden="true">⇄</div>
+                <div><p>Imported result batches</p><strong id="adminBatchCount">—</strong></div>
+              </article>
+            </div>
+
+            <section class="panel readiness-panel" aria-labelledby="readinessTitle">
+              <div class="panel-heading">
+                <div><h2 id="readinessTitle">System readiness</h2><p class="muted">Manage the services that support result imports and parent notifications</p></div>
+                <button id="refreshReadinessButton" class="text-button" type="button">Check again <span aria-hidden="true">↻</span></button>
+              </div>
+              <div class="readiness-grid" aria-live="polite">
+                <article class="readiness-item">
+                  <div><h3>Database</h3><span id="databaseReadinessStatus" class="readiness-indicator is-loading">Checking</span></div>
+                  <p id="databaseReadinessDetail">Checking database connection…</p>
+                </article>
+                <article class="readiness-item">
+                  <div><h3>Results API</h3><span id="resultsReadinessStatus" class="readiness-indicator is-loading">Checking</span></div>
+                  <p id="resultsReadinessDetail">Checking approved-results integration…</p>
+                </article>
+                <article class="readiness-item">
+                  <div><h3>SMS gateway</h3><span id="smsReadinessStatus" class="readiness-indicator is-loading">Checking</span></div>
+                  <p id="smsReadinessDetail">Checking SMS delivery configuration…</p>
+                </article>
+                <article class="readiness-item">
+                  <div><h3>Delivery reports</h3><span id="reportsReadinessStatus" class="readiness-indicator is-loading">Checking</span></div>
+                  <p id="reportsReadinessDetail">Checking provider delivery reports…</p>
+                </article>
+              </div>
+              <div class="readiness-actions">
+                <button class="text-button" type="button" data-open-view="integrationView">Results integration <span aria-hidden="true">→</span></button>
+                <button class="text-button" type="button" data-open-view="smsView">SMS outbox <span aria-hidden="true">→</span></button>
+                <button class="text-button" type="button" data-open-view="staffAccountsView">Staff accounts <span aria-hidden="true">→</span></button>
+              </div>
+            </section>
+
+            <section class="panel activity-panel">
+              <div class="panel-heading">
+                <div><h2>Recent parent SMS</h2><p class="muted">Delivery activity that may need administrator attention</p></div>
+                <button class="text-button" type="button" data-open-view="smsView">Manage SMS <span aria-hidden="true">→</span></button>
+              </div>
+              <div class="table-scroll">
+                <table>
+                  <thead><tr><th>Status</th><th>Parent / guardian</th><th>Learner</th><th>Exam</th><th>Last activity</th></tr></thead>
+                  <tbody id="adminSmsActivityBody"><tr><td colspan="5" class="empty-state">Loading SMS activity…</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <div id="academicOverviewPanel" class="role-dashboard hidden" data-role-dashboard="academic_master">
+            <div class="stat-grid">
+              <article class="stat-card">
+                <div class="stat-icon stat-icon-blue" aria-hidden="true">♙</div>
+                <div><p>Total learners</p><strong id="studentCount">—</strong></div>
+              </article>
+              <article class="stat-card">
+                <div class="stat-icon stat-icon-purple" aria-hidden="true">▤</div>
+                <div><p>Result entries</p><strong id="resultCount">—</strong></div>
+              </article>
+              <article class="stat-card">
+                <div class="stat-icon stat-icon-green" aria-hidden="true">%</div>
+                <div><p>Subjects recorded</p><strong id="subjectCount">—</strong></div>
+              </article>
+              <article class="stat-card">
+                <div class="stat-icon stat-icon-orange" aria-hidden="true">✓</div>
+                <div><p>Imported batches</p><strong id="academicBatchCount">—</strong></div>
+              </article>
+            </div>
+
+            <section class="panel contact-readiness-panel" aria-labelledby="contactReadinessTitle">
+              <div class="contact-readiness-copy">
+                <div>
+                  <p class="eyebrow">PARENT NOTIFICATION READINESS</p>
+                  <h2 id="contactReadinessTitle">Guardian contact coverage</h2>
+                  <p id="contactReadinessDescription" class="muted">Checking learner contact records…</p>
+                </div>
+                <div class="contact-readiness-metrics" aria-live="polite">
+                  <div><span>Contacts linked</span><strong id="learnersWithGuardiansCount">—</strong></div>
+                  <div><span>Missing contacts</span><strong id="learnersMissingGuardiansCount">—</strong></div>
+                </div>
+              </div>
+              <div class="contact-readiness-progress" role="progressbar" aria-label="Learners with at least one guardian contact" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <span id="contactReadinessProgress"></span>
+              </div>
+              <div class="contact-readiness-footer">
+                <span id="contactReadinessPercentage">0% of learners have at least one linked contact</span>
+                <button id="reviewMissingGuardiansButton" class="button button-secondary button-compact" type="button">Review missing contacts <span aria-hidden="true">→</span></button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-heading">
+                <div><h2>Subject performance</h2><p class="muted">Summary across imported learner results</p></div>
+                <div class="panel-heading-actions">
+                  <button class="text-button" type="button" data-open-view="studentsView">View learners <span aria-hidden="true">→</span></button>
+                  <button class="text-button" type="button" data-open-view="reportsView">Results report <span aria-hidden="true">→</span></button>
+                </div>
+              </div>
+              <div class="table-scroll">
+                <table>
+                  <thead><tr><th>Subject</th><th>Average</th><th>Highest</th><th>Lowest</th><th>Entries</th></tr></thead>
+                  <tbody id="summaryTableBody"><tr><td colspan="5" class="empty-state">Loading summary…</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="panel activity-panel">
+              <div class="panel-heading">
+                <div><h2>Latest results imports</h2><p class="muted">Approved result batches received from the school system</p></div>
+                <button class="text-button" type="button" data-open-view="integrationView">View imports <span aria-hidden="true">→</span></button>
+              </div>
+              <div class="table-scroll">
+                <table>
+                  <thead><tr><th>Exam</th><th>Source batch</th><th>Received</th><th>Results imported</th><th data-admin-only>SMS queued</th><th>Status</th></tr></thead>
+                  <tbody id="batchTableBody"><tr><td colspan="6" class="empty-state">Loading import history…</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="studentsView" class="content-view hidden" data-academic-only>
+          <div class="split-layout">
+            <section class="panel learner-panel">
+              <div class="panel-heading">
+                <div><h2>Learners</h2><p class="muted">Select a learner to view their results</p></div>
+                <div class="learner-list-actions">
+                  <span class="count-chip" id="learnerCountChip">0 learners</span>
+                  <button id="addStudentButton" class="button button-primary button-compact" type="button">＋ Add learner</button>
+                  <button id="importStudentCsvButton" class="button button-secondary button-compact" type="button">Import CSV</button>
+                  <button id="exportStudentCsvButton" class="button button-secondary button-compact" type="button" disabled>Export CSV</button>
+                  <input id="studentCsvFileInput" class="hidden" type="file" accept=".csv,text/csv" />
+                </div>
+              </div>
+              <label class="search-field">
+                <span class="sr-only">Search learners</span>
+                <span aria-hidden="true">⌕</span>
+                <input id="studentSearch" type="search" placeholder="Search name, admission number or class" />
+              </label>
+              <label class="class-filter" for="studentClassFilter">Filter by class
+                <select id="studentClassFilter">
+                  <option value="">All classes</option>
+                </select>
+              </label>
+              <label class="class-filter" for="studentContactFilter">Filter by guardian contacts
+                <select id="studentContactFilter">
+                  <option value="">All learners</option>
+                  <option value="missing">Missing guardian contact</option>
+                  <option value="registered">Contact registered</option>
+                </select>
+              </label>
+              <div id="studentList" class="student-list">
+                <p class="empty-state">Loading learners…</p>
+              </div>
+            </section>
+
+            <section class="panel result-panel">
+              <div class="panel-heading">
+                <div><p class="eyebrow">LEARNER PROFILE</p><h2 id="selectedStudentName">Select a learner</h2></div>
+                <button id="editStudentButton" class="button button-secondary button-compact" type="button" disabled>Edit learner</button>
+              </div>
+              <div class="learner-meta" id="selectedStudentMeta">Choose a learner from the list to see their result records.</div>
+              <section class="learner-guardian-section" aria-labelledby="selectedGuardiansTitle">
+                <div class="result-table-heading"><h3 id="selectedGuardiansTitle">Parent & guardian contacts</h3></div>
+                <div id="selectedStudentGuardians" class="learner-guardian-list">
+                  <p class="empty-state">Select a learner to view registered contacts.</p>
+                </div>
+              </section>
+              <div class="result-table-heading"><h3>Result records</h3></div>
+              <div class="table-scroll">
+                <table>
+                  <thead><tr><th>Subject</th><th>Score</th><th>Grade</th><th>Term</th><th>Year</th><th>Comment</th></tr></thead>
+                  <tbody id="resultTableBody"><tr><td colspan="6" class="empty-state">Select a learner to load results.</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+          <section id="studentCsvPreviewPanel" class="panel student-csv-preview-panel hidden" aria-labelledby="studentCsvPreviewTitle">
+            <div class="panel-heading student-csv-preview-heading">
+              <div>
+                <p class="eyebrow">BULK LEARNER REGISTER</p>
+                <h2 id="studentCsvPreviewTitle">CSV import preview</h2>
+                <p id="studentCsvPreviewSummary" class="muted" aria-live="polite">Review all rows before saving.</p>
+              </div>
+              <div class="student-csv-actions">
+                <button id="downloadStudentCsvTemplateButton" class="button button-secondary button-compact" type="button">Download template</button>
+                <button id="cancelStudentCsvImportButton" class="button button-secondary button-compact" type="button">Cancel import</button>
+                <button id="confirmStudentCsvImportButton" class="button button-primary button-compact" type="button" disabled>Import learners</button>
+              </div>
+            </div>
+            <div id="studentCsvErrorList" class="student-csv-errors hidden" role="alert"></div>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>CSV row</th><th>Learner</th><th>Admission no.</th><th>Class / year</th><th>Guardians</th><th>Validation</th></tr></thead>
+                <tbody id="studentCsvPreviewBody"><tr><td colspan="6" class="empty-state">Choose a CSV file to preview its learner records.</td></tr></tbody>
+              </table>
+            </div>
+          </section>
+          <dialog id="studentRecordModal" class="student-record-modal" aria-labelledby="studentRecordTitle">
+            <section class="panel student-record-form-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">LEARNER REGISTER</p>
+                  <h2 id="studentRecordTitle">Add learner</h2>
+                  <p class="muted">Keep learner details and parent contacts ready for approved results notifications.</p>
+                </div>
+                <button id="closeStudentRecordModalButton" class="staff-modal-close" type="button" aria-label="Close learner form">×</button>
+              </div>
+              <form id="studentRecordForm" class="student-record-form">
+                <div class="student-record-fields">
+                  <label for="studentNameInput">Learner full name
+                    <input id="studentNameInput" name="name" maxlength="120" autocomplete="name" required />
+                  </label>
+                  <label for="studentAdmissionInput">Admission number
+                    <input id="studentAdmissionInput" name="admissionNumber" maxlength="50" placeholder="Assigned when learner is saved" readonly />
+                  </label>
+                  <label for="studentClassInput">Class
+                    <input id="studentClassInput" name="className" maxlength="80" placeholder="e.g. Form 1" required />
+                  </label>
+                  <label for="studentYearInput">Academic year
+                    <input id="studentYearInput" name="year" type="number" min="2000" max="2100" required />
+                  </label>
+                </div>
+                <div class="guardian-form-heading">
+                  <div><h3>Parent & guardian contacts</h3><p class="muted">Use international phone format, for example +255712345678.</p></div>
+                  <button id="addStudentGuardianButton" class="button button-secondary button-compact" type="button">＋ Add contact</button>
+                </div>
+                <div id="studentGuardianFields" class="student-guardian-fields"></div>
+                <p class="field-hint">Guardian contacts are optional. If added, choose one primary contact. Updating this list replaces the learner’s linked contacts only.</p>
+                <div class="student-form-actions">
+                  <button id="saveStudentRecordButton" class="button button-primary" type="submit">Save learner</button>
+                  <button id="cancelStudentRecordButton" class="button button-secondary" type="button">Cancel</button>
+                </div>
+              </form>
+            </section>
+          </dialog>
+        </section>
+
+        <section id="reportsView" class="content-view hidden" data-academic-only>
+          <div class="sms-intro">
+            <div>
+              <p class="eyebrow">ACADEMIC ANALYSIS</p>
+              <h2>Results reports</h2>
+              <p class="muted">Filter learner results, export a CSV file, or print a report for school records.</p>
+            </div>
+          </div>
+          <section class="panel results-report-panel">
+            <div class="report-print-header">
+              <div>
+                <p class="eyebrow">MSONGOLA SECONDARY SCHOOL</p>
+                <h1>Academic results report</h1>
+                <p id="reportPrintFilters" class="muted">All classes, subjects, terms and years</p>
+              </div>
+              <p id="reportPrintDate" class="report-print-date"></p>
+            </div>
+            <div class="results-report-controls">
+              <label for="reportClassFilter">Class
+                <select id="reportClassFilter"><option value="">All classes</option></select>
+              </label>
+              <label for="reportSubjectFilter">Subject
+                <select id="reportSubjectFilter"><option value="">All subjects</option></select>
+              </label>
+              <label for="reportTermFilter">Term
+                <select id="reportTermFilter"><option value="">All terms</option></select>
+              </label>
+              <label for="reportYearFilter">Year
+                <select id="reportYearFilter"><option value="">All years</option></select>
+              </label>
+              <button id="refreshResultsReportButton" class="button button-secondary" type="button">Refresh report <span aria-hidden="true">↻</span></button>
+              <button id="exportResultsReportButton" class="button button-primary" type="button" disabled>Export CSV <span aria-hidden="true">↓</span></button>
+              <button id="printResultsReportButton" class="button button-secondary" type="button" disabled>Print report <span aria-hidden="true">▤</span></button>
+            </div>
+            <div class="results-report-summary" aria-live="polite">
+              <span id="reportResultCount">0 results</span>
+              <span id="reportLearnerCount">0 learners</span>
+              <span id="reportAverageScore">Average score —</span>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Learner</th><th>Admission no.</th><th>Class</th><th>Subject</th><th>Score</th><th>Grade</th><th>Term</th><th>Year</th><th>Comment</th></tr></thead>
+                <tbody id="resultsReportTableBody"><tr><td colspan="9" class="empty-state">Load a report to view results.</td></tr></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="smsView" class="content-view hidden">
+          <div class="sms-intro">
+            <div><p class="eyebrow">PARENT COMMUNICATION</p><h2>SMS outbox</h2>
+              <p class="muted">Messages are queued automatically when an approved result batch is imported.</p></div>
+          </div>
+          <div class="panel">
+            <div id="smsDeliveryNotice" class="delivery-notice">Checking SMS delivery configuration…</div>
+            <div class="outbox-controls">
+              <label for="outboxStatusFilter">Filter messages by status
+                <select id="outboxStatusFilter">
+                  <option value="">All statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="PROCESSING">Processing</option>
+                  <option value="SENT">Sent</option>
+                  <option value="DELIVERED">Delivered</option>
+                  <option value="FAILED">Failed</option>
+                </select>
+              </label>
+              <button id="refreshOutboxButton" class="button button-secondary" type="button">Refresh messages <span aria-hidden="true">↻</span></button>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Status</th><th>Parent phone</th><th>Learner</th><th>Exam</th><th>Sent / queued</th><th>Message</th><th>Action</th></tr></thead>
+                <tbody id="outboxTableBody"><tr><td colspan="7" class="empty-state">Loading SMS outbox…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="integrationView" class="content-view hidden">
+          <div class="sms-intro">
+            <div><p id="integrationViewEyebrow" class="eyebrow">SYSTEM-TO-SYSTEM</p><h2 id="integrationViewTitle">Approved results integration</h2>
+              <p id="integrationViewDescription" class="muted">The school results system submits finalized batches. No parent accounts are created.</p></div>
+          </div>
+          <section class="panel integration-panel" data-admin-only>
+            <div id="integrationReadiness" class="delivery-notice">Checking integration configuration…</div>
+            <div class="integration-step"><span>1</span><div><strong>Approve results in the school system</strong><p>Only a completed, approved exam batch should be shared.</p></div></div>
+            <div class="integration-step"><span>2</span><div><strong>Post the batch to the secure API</strong><p><code>POST /api/integrations/results/batches</code> with the <code>X-Integration-Key</code> server-side header.</p></div></div>
+            <div class="integration-step"><span>3</span><div><strong>Results import and guardian messages queue together</strong><p>Stable batch/result IDs prevent duplicates. Learners without registered guardian phone numbers are counted for follow-up.</p></div></div>
+            <div class="integration-step"><span>4</span><div><strong>Configure Africa's Talking</strong><p>Add the provider credentials to the backend environment and enable the SMS worker to send queued messages.</p></div></div>
+            <p class="integration-docs">Full payload contract and setup instructions are in <code>README.md</code>.</p>
+          </section>
+          <section class="panel integration-history-panel">
+            <div class="panel-heading">
+              <div><h3>Import history</h3><p class="muted">Review results batches received from the school system</p></div>
+              <span class="count-chip" id="integrationBatchCount">0 batches</span>
+            </div>
+            <div class="integration-history-controls">
+              <label class="search-field">
+                <span class="sr-only">Search results imports</span>
+                <span aria-hidden="true">⌕</span>
+                <input id="integrationBatchSearch" type="search" placeholder="Search exam, batch ID or source" />
+              </label>
+              <label for="integrationBatchStatusFilter">Filter by status
+                <select id="integrationBatchStatusFilter">
+                  <option value="">All statuses</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="PROCESSING">Processing</option>
+                  <option value="FAILED">Failed</option>
+                </select>
+              </label>
+              <button id="refreshIntegrationBatchesButton" class="button button-secondary" type="button">Refresh history <span aria-hidden="true">↻</span></button>
+            </div>
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Exam</th><th>Source batch</th><th>Source system</th><th>Received</th><th>Results</th><th>Duplicates</th><th data-admin-only>SMS queued</th><th>Missing contacts</th><th>Status</th></tr></thead>
+                <tbody id="integrationBatchTableBody"><tr><td colspan="9" class="empty-state">Loading import history…</td></tr></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="staffAccountsView" class="content-view hidden">
+          <div class="staff-page-intro">
+            <div>
+              <p class="eyebrow">PEOPLE & ACCESS</p>
+              <h2>Staff accounts</h2>
+              <p class="muted">Manage who can access the school workspace and what each role can do.</p>
+            </div>
+            <button class="button button-primary" type="button" data-staff-add aria-controls="staffAccountModal" aria-expanded="false">
+              <span aria-hidden="true">＋</span> Add staff member
+            </button>
+          </div>
+          <div class="staff-account-stats" aria-label="Staff account summary">
+            <article class="staff-account-stat">
+              <span class="staff-stat-icon staff-stat-icon-total" aria-hidden="true">♧</span>
+              <div><span>Total staff</span><strong id="staffTotalCount">—</strong></div>
+            </article>
+            <article class="staff-account-stat">
+              <span class="staff-stat-icon staff-stat-icon-admin" aria-hidden="true">◆</span>
+              <div><span>Administrators</span><strong id="staffAdminCount">—</strong></div>
+            </article>
+            <article class="staff-account-stat">
+              <span class="staff-stat-icon staff-stat-icon-academic" aria-hidden="true">▤</span>
+              <div><span>Academic Masters</span><strong id="staffAcademicCount">—</strong></div>
+            </article>
+          </div>
+          <dialog id="staffAccountModal" class="staff-account-modal" aria-labelledby="staffFormTitle">
+            <section id="staffAccountFormPanel" class="panel staff-account-form-panel">
+              <div class="panel-heading">
+                <div class="staff-panel-title">
+                  <span class="staff-panel-step">01</span>
+                  <div><h3 id="staffFormTitle">Add a staff account</h3><p class="muted">Set up secure staff access</p></div>
+                </div>
+                <button id="closeStaffAccountModalButton" class="staff-modal-close" type="button" aria-label="Close staff account form" title="Close">×</button>
+              </div>
+              <form id="staffAccountForm" class="staff-account-form">
+                <label for="staffNameInput">Full name
+                  <input id="staffNameInput" name="name" type="text" maxlength="120" autocomplete="name" placeholder="Enter the staff member's name" required />
+                </label>
+                <label for="staffEmailInput">Work email
+                  <input id="staffEmailInput" name="email" type="email" maxlength="150" autocomplete="email" placeholder="name@school.org" required />
+                </label>
+                <label for="staffRoleInput">Staff role
+                  <select id="staffRoleInput" name="role" required>
+                    <option value="academic_master">Academic Master</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </label>
+                <label for="staffPasswordInput">Temporary password
+                  <input id="staffPasswordInput" name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" aria-describedby="staffPasswordHint" />
+                  <span id="staffPasswordHint" class="field-hint">At least 12 characters. Required for a new account.</span>
+                </label>
+                <div class="staff-form-actions">
+                  <button id="saveStaffAccountButton" class="button button-primary" type="submit"><span aria-hidden="true">＋</span> Create staff account</button>
+                  <button id="cancelStaffEditButton" class="button button-secondary" type="button">Cancel</button>
+                </div>
+              </form>
+            </section>
+          </dialog>
+          <div class="staff-admin-layout">
+            <section class="panel staff-account-list-panel">
+              <div class="staff-list-heading">
+                <div class="staff-panel-title">
+                  <span class="staff-panel-step">02</span>
+                  <div><h3>Workspace access</h3><p class="muted">Review and manage registered staff</p></div>
+                </div>
+                <span class="count-chip" id="staffAccountCount" aria-live="polite">0 staff members</span>
+              </div>
+              <div class="staff-account-toolbar">
+                <label class="search-field staff-account-search">
+                  <span class="sr-only">Search staff accounts</span>
+                  <span aria-hidden="true">⌕</span>
+                  <input id="staffAccountSearch" type="search" placeholder="Search by name or email" />
+                </label>
+                <label class="staff-role-filter" for="staffRoleFilter">
+                  <span class="sr-only">Filter staff by role</span>
+                  <select id="staffRoleFilter">
+                    <option value="">All roles</option>
+                    <option value="admin">Administrators</option>
+                    <option value="academic_master">Academic Masters</option>
+                  </select>
+                </label>
+                <button id="refreshStaffAccountsButton" class="button button-secondary staff-refresh-button" type="button" aria-label="Refresh staff accounts" title="Refresh staff accounts">↻</button>
+              </div>
+              <div class="table-scroll">
+                <table>
+                  <thead><tr><th>Staff member</th><th>Role</th><th>Added</th><th>Actions</th></tr></thead>
+                  <tbody id="staffAccountTableBody" aria-live="polite"><tr><td colspan="4" class="empty-state">Staff accounts will appear here.</td></tr></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="profileView" class="content-view hidden">
+          <div class="profile-intro">
+            <div>
+              <p class="eyebrow">YOUR ACCOUNT</p>
+              <h2>My profile</h2>
+              <p class="muted">Your staff identity and workspace access at Msongola Secondary School.</p>
+            </div>
+            <span class="profile-account-status"><span aria-hidden="true"></span> Signed in</span>
+          </div>
+
+          <section class="profile-hero panel" aria-labelledby="profileName">
+            <div class="profile-avatar" id="profileAvatar" aria-hidden="true">A</div>
+            <div class="profile-hero-copy">
+              <p class="eyebrow">STAFF PROFILE</p>
+              <h2 id="profileName">Staff member</h2>
+              <p id="profileRoleLabel" class="muted">School staff</p>
+            </div>
+            <div class="profile-hero-school">
+              <span class="school-logo profile-school-logo">
+                <img src="./assets/images/msongola-secondary-school-logo.png" alt="" />
+              </span>
+              <span>MSONGOLA<br />SECONDARY SCHOOL</span>
+            </div>
+          </section>
+
+          <div class="profile-content-grid">
+            <section class="panel profile-details-panel" aria-labelledby="profileDetailsTitle">
+              <div class="panel-heading">
+                <div>
+                  <h3 id="profileDetailsTitle">Account details</h3>
+                  <p class="muted">Information associated with your staff account</p>
+                </div>
+              </div>
+              <dl class="profile-details-list">
+                <div class="profile-detail">
+                  <dt>Full name</dt>
+                  <dd id="profileDetailName">—</dd>
+                </div>
+                <div class="profile-detail">
+                  <dt>Work email</dt>
+                  <dd id="profileDetailEmail">—</dd>
+                </div>
+                <div class="profile-detail">
+                  <dt>Staff account ID</dt>
+                  <dd id="profileDetailId">—</dd>
+                </div>
+                <div class="profile-detail">
+                  <dt>Workspace</dt>
+                  <dd id="profileDetailWorkspace">—</dd>
+                </div>
+              </dl>
+              <p class="profile-privacy-note"><span aria-hidden="true">🔒</span> Your password is private and is never displayed on this page.</p>
+            </section>
+
+            <section class="panel profile-access-panel" aria-labelledby="profileAccessTitle">
+              <div class="panel-heading">
+                <div>
+                  <h3 id="profileAccessTitle">Your workspace access</h3>
+                  <p id="profileAccessDescription" class="muted">Access is determined by your staff role.</p>
+                </div>
+              </div>
+              <div id="profileAccessList" class="profile-access-list"></div>
+              <div class="profile-actions">
+                <button class="button button-secondary" type="button" data-open-view="overviewView">Back to overview <span aria-hidden="true">→</span></button>
+                <button id="profileSignOutButton" class="button profile-signout-button" type="button">Sign out <span aria-hidden="true">↗</span></button>
+              </div>
+            </section>
+          </div>
+        </section>
+        <footer class="developer-footer workspace-developer-footer">
+          <span>Developed By : Nassoro Amour Shekulamba</span>
+          <a href="mailto:nassoroamour63@gmail.com">Email: nassoroamour63@gmail.com</a>
+          <a href="tel:+255616957125">Phone Number: +255 616 957 125</a>
+        </footer>
+      </main>
+    </div>
+
+    <script src="./assets/app.js"></script>
+  </body>
+</html>

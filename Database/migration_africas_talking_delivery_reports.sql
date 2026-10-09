@@ -1,0 +1,5 @@
+USE msongola_results;
+
+ALTER TABLE sms_outbox
+    MODIFY COLUMN status ENUM('PENDING', 'PROCESSING', 'SENT', 'DELIVERED', 'FAILED') NOT NULL DEFAULT 'PENDING',
+    ADD COLUMN delivered_at DATETIME NULL AFTER sent_at;
