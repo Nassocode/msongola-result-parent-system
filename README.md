@@ -25,9 +25,9 @@ Before running this feature against an existing database, apply `Database/migrat
 
 The Academic Master-only bulk endpoint is `POST /api/students/import` with a JSON body shaped as `{ "students": [ ...learner records... ] }`. It accepts the same learner fields and guardian structure as `POST /api/students`, up to 500 records per request.
 
-Both staff roles have a **My profile** page in the workspace navigation. It displays the signed-in staff member's name, work email, account ID, workspace, and role-specific access; passwords are never displayed.
+Both staff roles have a **My profile** page in the workspace navigation. It displays the signed-in staff member's name, work email, account ID, workspace, and role-specific access; passwords are never displayed. Administrators and Academic Masters can change their own password from this page by entering the current password and confirming a new password of 12–128 characters. The API is `PATCH /api/profile/password` with `currentPassword` and `newPassword`.
 
-An administrator manages accounts from **Staff accounts** in the workspace or through `GET/POST /api/admin/users`, `PUT /api/admin/users/:id`, and `DELETE /api/admin/users/:id`. New passwords must be 12–128 characters. Account removal or role change takes effect on the next request because the API rechecks the current database account on every authenticated request. The current administrator cannot delete or demote their own account, and the system protects the last administrator.
+An administrator manages accounts from **Staff accounts** in the workspace or through `GET/POST /api/admin/users`, `PUT /api/admin/users/:id`, and `DELETE /api/admin/users/:id`. New passwords must be 12–128 characters. The account list also has a dedicated **Reset password** action for other staff accounts; it sets a temporary password without revealing it to the browser and the administrator should share it securely. The API is `PATCH /api/admin/users/:id/password` with a `password` field. Administrators must use their profile to change their own password. Account removal or role change takes effect on the next request because the API rechecks the current database account on every authenticated request. The current administrator cannot delete or demote their own account, and the system protects the last administrator.
 
 ## Backend tests
 
@@ -96,6 +96,10 @@ curl.exe --fail-with-body --request POST "http://localhost:5000/api/integrations
 Only remove the dry-run header after reviewing a successful validation response and confirming the target database and SMS settings. A normal request imports the batch and may queue messages for real guardians.
 
 `batchId` must stay the same when retrying delivery of the same exam batch. Each `externalResultId` must be a stable, unique ID for one subject result. The service validates and transactionally imports the batch, updates learner/guardian contacts, and queues one SMS per linked guardian and learner. Repeated batches are idempotent; only `APPROVED` batches are accepted.
+
+The local **Msongola School Result System** can send a complete approved class report to this API from its Academic Master reports page. Keep this API on port `5000` and run the school results API on port `5001`; its frontend should use `http://localhost:5001/api`. Configure the same private `RESULTS_INTEGRATION_KEY` in both backend environments and set the school results backend's `RESULTS_PARENT_API_URL=http://127.0.0.1:5000`. In the school system, generate a complete class report, run the dry-run check, then explicitly confirm an import. Dry-run validates the payload without database writes or SMS queueing.
+
+The school results database does not currently store guardian contacts. The integration therefore sends an empty guardian list; this leaves contacts already maintained in this system unchanged. Imported results can be associated with those existing contacts and may queue SMS messages if SMS delivery is configured.
 
 ## Africa's Talking SMS delivery
 

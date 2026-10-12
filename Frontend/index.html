@@ -100,7 +100,7 @@
         <header class="topbar">
           <div>
             <p class="school-name-heading">Msongola Secondary School</p>
-            <p class="eyebrow">ACADEMIC OFFICE</p>
+            <p class="eyebrow" id="workspaceEyebrow">ACADEMIC OFFICE</p>
             <h1 id="pageTitle">Overview</h1>
           </div>
           <div class="topbar-meta">
@@ -120,9 +120,34 @@
             </div>
             <div class="welcome-actions">
               <button id="refreshDashboardButton" class="button button-secondary" type="button">Refresh overview <span aria-hidden="true">↻</span></button>
-              <button id="dashboardPrimaryAction" class="button button-primary" type="button" data-open-view="staffAccountsView">Manage staff accounts <span aria-hidden="true">→</span></button>
+              <button id="dashboardPrimaryAction" class="button button-primary" type="button" data-open-view="staffAccountsView" data-admin-only>Manage staff accounts <span aria-hidden="true">→</span></button>
             </div>
           </div>
+
+          <section class="academic-quick-actions" data-academic-only aria-labelledby="academicQuickActionsTitle">
+            <div class="academic-quick-actions-heading">
+              <p class="eyebrow">ACADEMIC WORKFLOW</p>
+              <h2 id="academicQuickActionsTitle">Common tasks</h2>
+              <p class="muted">Get to the work you need in one step.</p>
+            </div>
+            <div class="academic-quick-actions-grid">
+              <button class="academic-quick-action" type="button" data-academic-action="add-learner">
+                <span class="academic-quick-action-icon" aria-hidden="true">＋</span>
+                <span><strong>Register a learner</strong><small>Add learner details and guardian contacts</small></span>
+                <span class="academic-quick-action-arrow" aria-hidden="true">→</span>
+              </button>
+              <button class="academic-quick-action" type="button" data-open-view="reportsView">
+                <span class="academic-quick-action-icon academic-quick-action-icon-report" aria-hidden="true">▥</span>
+                <span><strong>Review results</strong><small>Filter, export, or print academic reports</small></span>
+                <span class="academic-quick-action-arrow" aria-hidden="true">→</span>
+              </button>
+              <button class="academic-quick-action" type="button" data-open-view="integrationView">
+                <span class="academic-quick-action-icon academic-quick-action-icon-import" aria-hidden="true">⇄</span>
+                <span><strong>Track result imports</strong><small>Check the latest approved result batches</small></span>
+                <span class="academic-quick-action-arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
+          </section>
 
           <div id="adminOverviewPanel" class="role-dashboard hidden" data-role-dashboard="admin">
             <div class="stat-grid">
@@ -555,6 +580,30 @@
               </form>
             </section>
           </dialog>
+          <dialog id="staffPasswordModal" class="staff-account-modal" aria-labelledby="staffPasswordTitle">
+            <section class="panel staff-account-form-panel">
+              <div class="panel-heading">
+                <div class="staff-panel-title">
+                  <span class="staff-panel-step">🔒</span>
+                  <div><h3 id="staffPasswordTitle">Set a temporary password</h3><p id="staffPasswordAccount" class="muted">For selected staff account</p></div>
+                </div>
+                <button id="closeStaffPasswordModalButton" class="staff-modal-close" type="button" aria-label="Close password form" title="Close">×</button>
+              </div>
+              <form id="staffPasswordForm" class="staff-account-form">
+                <label for="staffTemporaryPasswordInput">Temporary password
+                  <input id="staffTemporaryPasswordInput" name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required />
+                  <span class="field-hint">Use 12–128 characters. Share the temporary password securely and ask the staff member to change it after signing in.</span>
+                </label>
+                <label for="staffTemporaryPasswordConfirmInput">Confirm temporary password
+                  <input id="staffTemporaryPasswordConfirmInput" name="confirmPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required />
+                </label>
+                <div class="staff-form-actions">
+                  <button id="saveStaffPasswordButton" class="button button-primary" type="submit">Set temporary password</button>
+                  <button id="cancelStaffPasswordButton" class="button button-secondary" type="button">Cancel</button>
+                </div>
+              </form>
+            </section>
+          </dialog>
           <div class="staff-admin-layout">
             <section class="panel staff-account-list-panel">
               <div class="staff-list-heading">
@@ -658,6 +707,31 @@
               </div>
             </section>
           </div>
+
+          <section class="panel profile-password-panel" aria-labelledby="profilePasswordTitle">
+            <div class="panel-heading">
+              <div>
+                <h3 id="profilePasswordTitle">Change your password</h3>
+                <p class="muted">Verify your current password before setting a new one.</p>
+              </div>
+            </div>
+            <form id="profilePasswordForm" class="profile-password-form">
+              <label for="currentProfilePassword">Current password
+                <input id="currentProfilePassword" name="currentPassword" type="password" autocomplete="current-password" required />
+              </label>
+              <label for="newProfilePassword">New password
+                <input id="newProfilePassword" name="newPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" aria-describedby="profilePasswordHint" required />
+              </label>
+              <label for="confirmProfilePassword">Confirm new password
+                <input id="confirmProfilePassword" name="confirmPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required />
+              </label>
+              <span id="profilePasswordHint" class="field-hint">Use 12–128 characters and choose a password you have not used here before.</span>
+              <div class="profile-password-actions">
+                <button id="saveProfilePasswordButton" class="button button-primary" type="submit">Update password</button>
+                <p id="profilePasswordMessage" class="form-message" role="status" aria-live="polite"></p>
+              </div>
+            </form>
+          </section>
         </section>
         <footer class="developer-footer workspace-developer-footer">
           <span>Developed By : Nassoro Amour Shekulamba</span>

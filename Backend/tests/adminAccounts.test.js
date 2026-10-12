@@ -71,6 +71,16 @@ const pool = {
       const user = users.find((entry) => String(entry.id) === String(parameters[0]));
       return [user ? [{ id: user.id, name: user.name, email: user.email, role: user.role }] : []];
     }
+    if (sql.startsWith("SELECT password_hash FROM users")) {
+      const user = users.find((entry) => String(entry.id) === String(parameters[0]));
+      return [user ? [{ password_hash: user.password_hash }] : []];
+    }
+    if (sql.startsWith("UPDATE users SET password_hash = ?")) {
+      const user = users.find((entry) => String(entry.id) === String(parameters[1]));
+      if (!user) return [{ affectedRows: 0 }];
+      user.password_hash = parameters[0];
+      return [{ affectedRows: 1 }];
+    }
     if (sql.startsWith("INSERT INTO users")) {
       const [, email] = parameters;
       if (users.some((entry) => entry.email === email)) {
@@ -171,6 +181,8 @@ test("administrator manages staff accounts while academic master cannot administ
     { id: 3, name: "Second Admin", email: "second-admin@school.test", role: "admin", password_hash: "hash-3", createdAt: "2026-03-01" },
     { id: 4, name: "Legacy Parent Login", email: "parent@school.test", role: "parent", password_hash: "hash-4", createdAt: "2026-04-01" },
   ];
+  users[0].password_hash = await bcrypt.hash("admin-current-password", 4);
+  users[1].password_hash = await bcrypt.hash("academic-current-password", 4);
   nextId = 5;
   const server = app.listen(0, "127.0.0.1");
   t.after(async () => {
@@ -250,6 +262,64 @@ test("administrator manages staff accounts while academic master cannot administ
 
   const denied = await request(baseUrl, "/api/admin/users", academicToken);
   assert.equal(denied.response.status, 403);
+  const deniedPasswordReset = await request(
+    baseUrl,
+    "/api/admin/users/2/password",
+    academicToken,
+    "PATCH",
+    { password: "academic-new-temporary-password" }
+  );
+  assert.equal(deniedPasswordReset.response.status, 403);
+
+  const wrongCurrentPassword = await request(baseUrl, "/api/profile/password", academicToken, "PATCH", {
+    currentPassword: "incorrect-current-password",
+    newPassword: "academic-new-secure-password",
+  });
+  assert.equal(wrongCurrentPassword.response.status, 400);
+  const weakNewPassword = await request(baseUrl, "/api/profile/password", academicToken, "PATCH", {
+    currentPassword: "academic-current-password",
+    newPassword: "short",
+  });
+  assert.equal(weakNewPassword.response.status, 400);
+  const changedOwnPassword = await request(baseUrl, "/api/profile/password", academicToken, "PATCH", {
+    currentPassword: "academic-current-password",
+    newPassword: "academic-new-secure-password",
+  });
+  assert.equal(changedOwnPassword.response.status, 200);
+  assert.equal(
+    await bcrypt.compare("academic-new-secure-password", users.find((entry) => entry.id === 2).password_hash),
+    true
+  );
+
+  const selfPasswordReset = await request(baseUrl, "/api/admin/users/1/password", adminToken, "PATCH", {
+    password: "administrator-temporary-password",
+  });
+  assert.equal(selfPasswordReset.response.status, 409);
+  const shortAdminReset = await request(baseUrl, "/api/admin/users/2/password", adminToken, "PATCH", {
+    password: "too-short",
+  });
+  assert.equal(shortAdminReset.response.status, 400);
+  const adminPasswordReset = await request(baseUrl, "/api/admin/users/2/password", adminToken, "PATCH", {
+    password: "academic-new-temporary-password",
+  });
+  assert.equal(adminPasswordReset.response.status, 200);
+  assert.equal(
+    await bcrypt.compare("academic-new-temporary-password", users.find((entry) => entry.id === 2).password_hash),
+    true
+  );
+  const changedAdminPassword = await request(baseUrl, "/api/profile/password", adminToken, "PATCH", {
+    currentPassword: "admin-current-password",
+    newPassword: "administrator-new-secure-password",
+  });
+  assert.equal(changedAdminPassword.response.status, 200);
+  assert.equal(
+    await bcrypt.compare("administrator-new-secure-password", users.find((entry) => entry.id === 1).password_hash),
+    true
+  );
+  const missingAccountReset = await request(baseUrl, "/api/admin/users/99/password", adminToken, "PATCH", {
+    password: "academic-new-temporary-password",
+  });
+  assert.equal(missingAccountReset.response.status, 404);
 
   const list = await request(baseUrl, "/api/admin/users", adminToken);
   assert.equal(list.response.status, 200);

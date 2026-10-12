@@ -783,6 +783,47 @@ app.get("/api/profile", authenticateToken, async (req, res) => {
   });
 });
 
+app.patch("/api/profile/password", authenticateToken, async (req, res) => {
+  const currentPassword = req.body?.currentPassword;
+  const newPassword = req.body?.newPassword;
+  if (typeof currentPassword !== "string" || !currentPassword ||
+      typeof newPassword !== "string" || newPassword.length < 12 || newPassword.length > 128) {
+    return res.status(400).json({
+      success: false,
+      message: "Enter your current password and a new password containing 12 to 128 characters.",
+    });
+  }
+  if (currentPassword === newPassword) {
+    return res.status(400).json({
+      success: false,
+      message: "Your new password must be different from your current password.",
+    });
+  }
+
+  try {
+    const [users] = await pool.execute(
+      "SELECT password_hash FROM users WHERE id = ? LIMIT 1",
+      [req.user.id]
+    );
+    if (!users.length || !await bcrypt.compare(currentPassword, users[0].password_hash)) {
+      return res.status(400).json({
+        success: false,
+        message: "The current password is incorrect.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await pool.execute(
+      "UPDATE users SET password_hash = ? WHERE id = ?",
+      [passwordHash, req.user.id]
+    );
+    return res.json({ success: true, message: "Your password has been changed." });
+  } catch (error) {
+    console.error("Staff password change failed:", error.message);
+    return res.status(500).json({ success: false, message: "Unable to change your password." });
+  }
+});
+
 app.get("/api/admin/users", authenticateToken, requireSystemAdmin, async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -826,6 +867,44 @@ app.post("/api/admin/users", authenticateToken, requireSystemAdmin, async (req, 
     }
     console.error("Staff account creation failed:", error.message);
     return res.status(500).json({ success: false, message: "Unable to create the staff account." });
+  }
+});
+
+app.patch("/api/admin/users/:id/password", authenticateToken, requireSystemAdmin, async (req, res) => {
+  const userId = parsePositiveInteger(req.params.id, null);
+  const password = req.body?.password;
+  if (!userId) {
+    return res.status(400).json({ success: false, message: "A valid staff account ID is required." });
+  }
+  if (String(userId) === String(req.user.id)) {
+    return res.status(409).json({
+      success: false,
+      message: "Use your profile to change your own password.",
+    });
+  }
+  if (typeof password !== "string" || password.length < 12 || password.length > 128) {
+    return res.status(400).json({
+      success: false,
+      message: "The temporary password must contain between 12 and 128 characters.",
+    });
+  }
+
+  try {
+    const passwordHash = await bcrypt.hash(password, 12);
+    const [result] = await pool.execute(
+      "UPDATE users SET password_hash = ? WHERE id = ? AND role IN ('admin', 'academic_master')",
+      [passwordHash, userId]
+    );
+    if (!result.affectedRows) {
+      return res.status(404).json({ success: false, message: "Staff account not found." });
+    }
+    return res.json({
+      success: true,
+      message: "Temporary password set. Share it securely and ask the staff member to change it after signing in.",
+    });
+  } catch (error) {
+    console.error("Administrator password reset failed:", error.message);
+    return res.status(500).json({ success: false, message: "Unable to reset the staff password." });
   }
 });
 
@@ -1181,7 +1260,9 @@ app.post("/api/integrations/results/batches", async (req, res) => {
         studentGroups.set(studentId, studentGroup);
       }
 
-      await connection.execute("DELETE FROM parent_students WHERE student_id = ?", [studentId]);
+      if (incomingStudent.guardians.length > 0) {
+        await connection.execute("DELETE FROM parent_students WHERE student_id = ?", [studentId]);
+      }
       for (const [guardianIndex, guardian] of incomingStudent.guardians.entries()) {
         const phone = normalizePhoneNumber(guardian.phone);
         const [parentInsert] = await connection.execute(

@@ -29,6 +29,8 @@ const resultsReportTableBody = document.getElementById("resultsReportTableBody")
 const staffAccountForm = document.getElementById("staffAccountForm");
 const staffAccountModal = document.getElementById("staffAccountModal");
 const staffAccountFormPanel = document.getElementById("staffAccountFormPanel");
+const staffPasswordForm = document.getElementById("staffPasswordForm");
+const staffPasswordModal = document.getElementById("staffPasswordModal");
 const staffAccountTableBody = document.getElementById("staffAccountTableBody");
 const staffAccountSearch = document.getElementById("staffAccountSearch");
 const staffRoleFilter = document.getElementById("staffRoleFilter");
@@ -57,6 +59,7 @@ let editingStudentId = "";
 let studentCsvRecords = [];
 let studentCsvErrors = [];
 let editingStaffAccountId = "";
+let staffPasswordTargetId = "";
 let outboxRequestId = 0;
 let integrationBatchesRequestId = 0;
 
@@ -218,6 +221,7 @@ function showApplication(user) {
   document.getElementById("staffInitials").textContent = getInitials(name);
   document.getElementById("welcomeName").textContent = name.split(/\s+/)[0];
   document.getElementById("workspaceLabel").textContent = isAdmin ? "Administrator workspace" : "Academic workspace";
+  document.getElementById("workspaceEyebrow").textContent = isAdmin ? "SYSTEM ADMINISTRATION" : "ACADEMIC OFFICE";
   document.getElementById("welcomeDescription").textContent = isAdmin
     ? "Monitor staff access, integrations, and parent message delivery."
     : "Review learner results, subject performance, and approved result imports.";
@@ -566,6 +570,7 @@ function renderStaffAccounts() {
         <td class="staff-account-actions">
           <div class="staff-action-group">
             <button class="staff-edit-button" type="button" data-edit-staff="${escapeHtml(account.id)}"><span aria-hidden="true">✎</span> Edit</button>
+            ${isCurrentUser ? "" : `<button class="staff-edit-button" type="button" data-reset-staff-password="${escapeHtml(account.id)}">Reset password</button>`}
             <button class="staff-delete-button" type="button" data-delete-staff="${escapeHtml(account.id)}"${isCurrentUser ? " disabled title=\"You cannot delete your own account.\"" : ""}><span aria-hidden="true">⌫</span> Delete</button>
           </div>
         </td>
@@ -634,6 +639,25 @@ function editStaffAccount(accountId) {
     "Leave blank to keep the current password. A new password must have at least 12 characters.";
   document.getElementById("saveStaffAccountButton").innerHTML = '<span aria-hidden="true">✓</span> Save changes';
   document.getElementById("staffNameInput").focus();
+}
+
+function closeStaffPasswordModal() {
+  staffPasswordTargetId = "";
+  staffPasswordForm.reset();
+  if (staffPasswordModal.open) staffPasswordModal.close();
+}
+
+function openStaffPasswordModal(accountId) {
+  const account = staffAccounts.find((entry) => String(entry.id) === String(accountId));
+  if (!account || String(account.id) === String(currentUser?.id)) {
+    showAppMessage("Select another staff account to reset its password.", true);
+    return;
+  }
+  staffPasswordTargetId = String(account.id);
+  document.getElementById("staffPasswordAccount").textContent = `${account.name} · ${account.email}`;
+  staffPasswordForm.reset();
+  staffPasswordModal.showModal();
+  document.getElementById("staffTemporaryPasswordInput").focus();
 }
 
 async function loadBatches() {
@@ -1430,8 +1454,73 @@ document.querySelectorAll("[data-open-view]").forEach((button) => {
   button.addEventListener("click", () => setView(button.dataset.openView));
 });
 
+document.querySelectorAll("[data-academic-action='add-learner']").forEach((button) => {
+  button.addEventListener("click", () => {
+    setView("studentsView");
+    openNewStudentRecordForm();
+  });
+});
+
 document.getElementById("logoutButton").addEventListener("click", () => signOut());
 document.getElementById("profileSignOutButton").addEventListener("click", () => signOut());
+document.getElementById("profilePasswordForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const currentPassword = document.getElementById("currentProfilePassword").value;
+  const newPassword = document.getElementById("newProfilePassword").value;
+  const confirmPassword = document.getElementById("confirmProfilePassword").value;
+  const saveButton = document.getElementById("saveProfilePasswordButton");
+  const message = document.getElementById("profilePasswordMessage");
+  message.textContent = "";
+  message.classList.remove("error", "success");
+  if (newPassword !== confirmPassword) {
+    message.textContent = "The new password and confirmation do not match.";
+    message.classList.add("error");
+    return;
+  }
+
+  saveButton.disabled = true;
+  try {
+    const response = await requestJson("/api/profile/password", {
+      method: "PATCH",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    document.getElementById("profilePasswordForm").reset();
+    message.textContent = response.message || "Your password has been changed.";
+    message.classList.add("success");
+  } catch (error) {
+    message.textContent = error.message || "Unable to change your password.";
+    message.classList.add("error");
+  } finally {
+    saveButton.disabled = false;
+  }
+});
+staffPasswordForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const password = document.getElementById("staffTemporaryPasswordInput").value;
+  const confirmPassword = document.getElementById("staffTemporaryPasswordConfirmInput").value;
+  const saveButton = document.getElementById("saveStaffPasswordButton");
+  if (!staffPasswordTargetId) return;
+  if (password !== confirmPassword) {
+    showAppMessage("The temporary password and confirmation do not match.", true);
+    return;
+  }
+  const account = staffAccounts.find((entry) => String(entry.id) === staffPasswordTargetId);
+  if (!account || !window.confirm(`Set a new temporary password for ${account.name}? They will need to use it at their next sign-in.`)) return;
+
+  saveButton.disabled = true;
+  try {
+    const response = await requestJson(
+      `/api/admin/users/${encodeURIComponent(staffPasswordTargetId)}/password`,
+      { method: "PATCH", body: JSON.stringify({ password }) }
+    );
+    closeStaffPasswordModal();
+    showAppMessage(response.message || "Temporary password set.");
+  } catch (error) {
+    showAppMessage(error.message || "Unable to reset the staff password.", true);
+  } finally {
+    saveButton.disabled = false;
+  }
+});
 document.getElementById("refreshDashboardButton").addEventListener("click", loadWorkspace);
 studentSearch.addEventListener("input", renderStudentList);
 studentClassFilter.addEventListener("change", renderStudentList);
@@ -1526,6 +1615,17 @@ integrationBatchStatusFilter.addEventListener("change", renderIntegrationBatches
 refreshIntegrationBatchesButton.addEventListener("click", loadIntegrationBatches);
 document.getElementById("cancelStaffEditButton").addEventListener("click", resetStaffAccountForm);
 document.getElementById("closeStaffAccountModalButton").addEventListener("click", resetStaffAccountForm);
+document.getElementById("cancelStaffPasswordButton").addEventListener("click", closeStaffPasswordModal);
+document.getElementById("closeStaffPasswordModalButton").addEventListener("click", closeStaffPasswordModal);
+staffPasswordModal.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeStaffPasswordModal();
+  }
+});
+staffPasswordModal.addEventListener("click", (event) => {
+  if (event.target === staffPasswordModal) closeStaffPasswordModal();
+});
 staffAccountModal.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     event.preventDefault();
@@ -1612,6 +1712,12 @@ staffAccountForm.addEventListener("submit", async (event) => {
 });
 
 staffAccountTableBody.addEventListener("click", async (event) => {
+  const resetPasswordButton = event.target.closest("[data-reset-staff-password]");
+  if (resetPasswordButton) {
+    openStaffPasswordModal(resetPasswordButton.dataset.resetStaffPassword);
+    return;
+  }
+
   const editButton = event.target.closest("[data-edit-staff]");
   if (editButton) {
     editStaffAccount(editButton.dataset.editStaff);
