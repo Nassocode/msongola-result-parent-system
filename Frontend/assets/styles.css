@@ -369,12 +369,6 @@ a:focus-visible {
   background: #fffaf0;
 }
 
-.demo-hint {
-  margin: 20px 0 0;
-  color: #8997a8;
-  font-size: 12px;
-}
-
 .form-message {
   min-height: 20px;
   margin: 10px 0 0;
@@ -2214,6 +2208,46 @@ tbody tr:last-child td {
 
 .integration-history-panel {
   margin-top: 17px;
+}
+
+.batch-sms-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 210px;
+}
+
+.batch-sms-count {
+  display: inline-flex;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #53667c;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.batch-sms-count.status-pending,
+.batch-sms-count.status-processing {
+  background: #fff5d9;
+  color: #946b0c;
+}
+
+.batch-sms-count.status-delivered {
+  background: #e6f5ec;
+  color: #267344;
+}
+
+.batch-sms-count.status-failed {
+  background: #fdebea;
+  color: #a3312c;
+}
+
+.batch-sms-empty {
+  color: #65758a;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .integration-history-controls {

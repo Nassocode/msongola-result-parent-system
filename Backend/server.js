@@ -27,6 +27,7 @@ const JWT_SECRET = jwtSecretConfigured
   : crypto.randomBytes(32).toString("hex");
 const RESULTS_INTEGRATION_KEY = process.env.RESULTS_INTEGRATION_KEY || "";
 const resultsIntegrationKeyConfigured = isConfiguredSecret(RESULTS_INTEGRATION_KEY);
+const EXCLUDED_SUBJECTS = new Set(["computer studies", "science"]);
 
 if (process.env.NODE_ENV === "production" && !jwtSecretConfigured) {
   throw new Error("Set a private JWT_SECRET of at least 32 characters in production.");
@@ -53,6 +54,118 @@ function normalizePhoneNumber(value) {
   const phone = sanitizeString(value);
   const normalized = phone.replace(/[^\d+]/g, "");
   return /^\+[1-9]\d{6,14}$/.test(normalized) ? normalized : null;
+}
+
+function isExcludedSubject(subject) {
+  return EXCLUDED_SUBJECTS.has(sanitizeString(subject).toLowerCase());
+}
+
+function buildStudentPerformanceSummaries(students) {
+  const summaries = students.map((student) => {
+    const results = student.results.filter((result) => !isExcludedSubject(result.subject));
+    const totalScore = results.reduce((total, result) => total + Number(result.score), 0);
+    return {
+      admissionNumber: sanitizeString(student.admissionNumber),
+      className: sanitizeString(student.className),
+      division: sanitizeString(student.division) || null,
+      totalPoints: student.totalPoints ?? null,
+      position: student.classPosition ?? null,
+      classSize: null,
+      sourcePositionProvided: Object.hasOwn(student, "classPosition"),
+      totalScore,
+      resultCount: results.length,
+      averageScore: results.length ? totalScore / results.length : null,
+    };
+  });
+  const studentsByClass = new Map();
+
+  for (const summary of summaries) {
+    if (summary.averageScore === null) continue;
+    const classStudents = studentsByClass.get(summary.className) || [];
+    classStudents.push(summary);
+    studentsByClass.set(summary.className, classStudents);
+  }
+
+  for (const classStudents of studentsByClass.values()) {
+    for (const summary of classStudents) {
+      summary.classSize = classStudents.length;
+    }
+    const rankedStudents = classStudents.filter((summary) => !summary.sourcePositionProvided);
+    rankedStudents.sort((left, right) => right.averageScore - left.averageScore);
+    let currentPosition = 0;
+    let previousAverage = null;
+    rankedStudents.forEach((summary, index) => {
+      if (previousAverage === null || Math.abs(summary.averageScore - previousAverage) > 1e-9) {
+        currentPosition = index + 1;
+        previousAverage = summary.averageScore;
+      }
+      summary.position = currentPosition;
+    });
+  }
+
+  return new Map(summaries.map((summary) => [summary.admissionNumber, summary]));
+}
+
+function assignClassPositions(studentGroups) {
+  const groupsByClass = new Map();
+  for (const studentGroup of studentGroups) {
+    const classStudents = groupsByClass.get(studentGroup.className) || [];
+    const results = studentGroup.results || studentGroup.importedResults;
+    studentGroup.totalScore = results.reduce((total, result) => total + Number(result.score), 0);
+    studentGroup.averageScore = results.length ? studentGroup.totalScore / results.length : null;
+    studentGroup.classSize = null;
+    classStudents.push(studentGroup);
+    groupsByClass.set(studentGroup.className, classStudents);
+  }
+
+  for (const classStudents of groupsByClass.values()) {
+    for (const studentGroup of classStudents) {
+      studentGroup.classSize = classStudents.length;
+    }
+    classStudents.sort((left, right) => (right.averageScore ?? -Infinity) - (left.averageScore ?? -Infinity));
+    let currentPosition = 0;
+    let previousAverage = null;
+    classStudents.forEach((studentGroup, index) => {
+      if (studentGroup.averageScore === null) return;
+      if (Number.isInteger(studentGroup.position) && studentGroup.position > 0) return;
+      if (previousAverage === null || Math.abs(studentGroup.averageScore - previousAverage) > 1e-9) {
+        currentPosition = index + 1;
+        previousAverage = studentGroup.averageScore;
+      }
+      studentGroup.position = currentPosition;
+    });
+  }
+}
+
+function buildSwahiliResultsMessage({ guardian, studentName, examName, term, year, results, division, totalPoints, averageScore, totalScore, position, classSize }) {
+  const examLabel = sanitizeString(examName);
+  const termLabel = sanitizeString(term);
+  const assessmentLabel = examLabel.toLowerCase() === termLabel.toLowerCase()
+    ? `${termLabel} ${Number(year)}`
+    : `${examLabel} (${termLabel} ${Number(year)})`;
+  const subjectResults = results
+    .map((result) => `${sanitizeString(result.subject)}: ${Number(result.score)}% (${sanitizeString(result.grade)})`)
+    .join(", ");
+  const averageText = averageScore !== null && averageScore !== undefined && averageScore !== "" &&
+    Number.isFinite(Number(averageScore))
+    ? `${Number(averageScore).toFixed(1)}%`
+    : "Haipatikani";
+  const divisionText = sanitizeString(division) || "Haijatolewa";
+  const positionText = Number.isInteger(Number(position)) && Number(position) > 0
+    ? Number(position)
+    : "Haijapatikana";
+  const classSizeText = Number.isInteger(Number(classSize)) && Number(classSize) > 0
+    ? Number(classSize)
+    : "Haijapatikana";
+  const totalPointsText = totalPoints !== null && totalPoints !== undefined && totalPoints !== "" &&
+    Number.isInteger(Number(totalPoints)) && Number(totalPoints) >= 0
+    ? Number(totalPoints)
+    : "Haijatolewa";
+
+  return `Mzazi ${sanitizeString(guardian) || "Mlezi"}, matokeo ya ${sanitizeString(studentName)} - ` +
+    `${assessmentLabel}: ${subjectResults}. ` +
+    `Jumla ya alama: ${Number(totalScore)}; wastani: ${averageText}; ` +
+    `Division: ${divisionText} (${totalPointsText} points); nafasi darasani: ${positionText} kati ya ${classSizeText}.`;
 }
 
 function validateResultsBatch(payload) {
@@ -88,6 +201,20 @@ function validateResultsBatch(payload) {
     const admissionNumber = sanitizeString(student?.admissionNumber);
     const name = sanitizeString(student?.name);
     const className = sanitizeString(student?.className);
+    if (student?.division !== undefined &&
+      (typeof student.division !== "string" || student.division.trim().length > 30)) {
+      return `Division for ${admissionNumber || "a learner"} must be a string of 30 characters or fewer.`;
+    }
+    if (student?.classPosition !== undefined &&
+      student.classPosition !== null &&
+      (!Number.isInteger(student.classPosition) || student.classPosition < 1)) {
+      return `Class position for ${admissionNumber || "a learner"} must be a positive integer or null.`;
+    }
+    if (student?.totalPoints !== undefined &&
+      student.totalPoints !== null &&
+      (!Number.isInteger(student.totalPoints) || student.totalPoints < 0 || student.totalPoints > 999)) {
+      return `Total points for ${admissionNumber || "a learner"} must be an integer from 0 to 999 or null.`;
+    }
 
     if (externalStudentId.length > 100) return "externalStudentId must be 100 characters or fewer.";
     if (!admissionNumber || admissionNumber.length > 50) return "Every learner must have an admissionNumber of 50 characters or fewer.";
@@ -98,6 +225,9 @@ function validateResultsBatch(payload) {
 
     if (!Array.isArray(student.results) || student.results.length === 0 || student.results.length > 50) {
       return `Learner ${admissionNumber} must have between 1 and 50 subject results.`;
+    }
+    if (!student.results.some((result) => !isExcludedSubject(result?.subject))) {
+      return `Learner ${admissionNumber} must have at least one result other than Computer Studies or Science.`;
     }
 
     totalResults += student.results.length;
@@ -171,6 +301,8 @@ function buildStudentPayload(rows) {
         grade: row.grade,
         term: row.term,
         year: row.year,
+        division: row.division || null,
+        classPosition: row.classPosition || null,
         comment: row.comment || "Great effort",
       })),
   };
@@ -540,8 +672,10 @@ app.get("/api/dashboard/summary", authenticateToken, requireAdmin, async (req, r
             WHERE EXISTS (SELECT 1 FROM parent_students ps WHERE ps.student_id = s.id)) AS learnersWithGuardiansCount,
            (SELECT COUNT(*) FROM students s
             WHERE NOT EXISTS (SELECT 1 FROM parent_students ps WHERE ps.student_id = s.id)) AS learnersMissingGuardiansCount,
-           (SELECT COUNT(*) FROM result_records) AS resultCount,
-           (SELECT COUNT(DISTINCT subject) FROM result_records) AS subjectCount,
+           (SELECT COUNT(*) FROM result_records
+            WHERE LOWER(TRIM(subject)) NOT IN ('computer studies', 'science')) AS resultCount,
+           (SELECT COUNT(DISTINCT subject) FROM result_records
+            WHERE LOWER(TRIM(subject)) NOT IN ('computer studies', 'science')) AS subjectCount,
            (SELECT COUNT(*) FROM result_import_batches) AS importBatchCount,
            (SELECT COALESCE(SUM(missing_contacts), 0) FROM result_import_batches) AS missingContactsCount`
     );
@@ -563,7 +697,8 @@ app.get("/api/students", authenticateToken, requireAcademicMaster, async (req, r
   try {
     const [rows] = await pool.query(
       `SELECT s.id, s.name, s.admission_number AS admissionNumber, s.class_name AS className,
-              s.year, (SELECT COUNT(*) FROM result_records rr WHERE rr.student_id = s.id) AS resultCount,
+              s.year, (SELECT COUNT(*) FROM result_records rr WHERE rr.student_id = s.id
+                       AND LOWER(TRIM(rr.subject)) NOT IN ('computer studies', 'science')) AS resultCount,
               (SELECT COUNT(*) FROM parent_students ps WHERE ps.student_id = s.id) AS guardianCount
        FROM students s
        ORDER BY s.name ASC`
@@ -1117,7 +1252,10 @@ app.post("/api/integrations/results/batches", async (req, res) => {
 
   const batch = req.body;
   if (req.get("x-integration-dry-run")?.toLowerCase() === "true") {
-    const resultCount = batch.students.reduce((total, student) => total + student.results.length, 0);
+    const resultCount = batch.students.reduce(
+      (total, student) => total + student.results.filter((result) => !isExcludedSubject(result.subject)).length,
+      0
+    );
     const guardianCount = batch.students.reduce((total, student) => total + student.guardians.length, 0);
     return res.json({
       success: true,
@@ -1150,7 +1288,10 @@ app.post("/api/integrations/results/batches", async (req, res) => {
           sanitizeString(batch.examName),
           sanitizeString(batch.term),
           Number(batch.year),
-          batch.students.reduce((total, student) => total + student.results.length, 0),
+          batch.students.reduce(
+            (total, student) => total + student.results.filter((result) => !isExcludedSubject(result.subject)).length,
+            0
+          ),
         ]
       );
       batchId = batchInsert.insertId;
@@ -1183,6 +1324,7 @@ app.post("/api/integrations/results/batches", async (req, res) => {
     }
 
     const studentGroups = new Map();
+    const performanceByAdmission = buildStudentPerformanceSummaries(batch.students);
     let importedRecords = 0;
     let duplicateRecords = 0;
 
@@ -1254,6 +1396,8 @@ app.post("/api/integrations/results/batches", async (req, res) => {
         studentGroup = {
           studentId,
           studentName: sanitizeString(incomingStudent.name),
+          className: sanitizeString(incomingStudent.className),
+          ...performanceByAdmission.get(admissionNumber),
           guardians: new Map(),
           importedResults: [],
         };
@@ -1295,11 +1439,12 @@ app.post("/api/integrations/results/batches", async (req, res) => {
       }
 
       for (const result of incomingStudent.results) {
+        if (isExcludedSubject(result.subject)) continue;
         const score = Number(result.score);
         const [insertResult] = await connection.execute(
           `INSERT IGNORE INTO result_records
-             (external_result_id, import_batch_id, student_id, subject, score, grade, term, year, comment)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (external_result_id, import_batch_id, student_id, subject, score, grade, term, year, comment, division, total_points, class_position)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             sanitizeString(result.externalResultId),
             batchId,
@@ -1310,6 +1455,9 @@ app.post("/api/integrations/results/batches", async (req, res) => {
             sanitizeString(batch.term),
             Number(batch.year),
             sanitizeString(result.comment) || null,
+            studentGroup.division,
+            studentGroup.totalPoints,
+            studentGroup.position,
           ]
         );
 
@@ -1359,13 +1507,20 @@ app.post("/api/integrations/results/batches", async (req, res) => {
         continue;
       }
 
-      const messageText =
-        `Hello {guardian}, results for ${studentGroup.studentName} — ${sanitizeString(batch.examName)} ` +
-        `(${sanitizeString(batch.term)} ${Number(batch.year)}): ` +
-        studentGroup.importedResults
-          .map((result) => `${result.subject} ${result.grade} (${result.score}%)`)
-          .join(", ") +
-        ".";
+      const messageText = buildSwahiliResultsMessage({
+        guardian: "{guardian}",
+        studentName: studentGroup.studentName,
+        examName: batch.examName,
+        term: batch.term,
+        year: batch.year,
+        results: studentGroup.importedResults,
+        division: studentGroup.division,
+        totalPoints: studentGroup.totalPoints,
+        averageScore: studentGroup.averageScore,
+        totalScore: studentGroup.totalScore,
+        position: studentGroup.position,
+        classSize: studentGroup.classSize,
+      });
 
       for (const guardian of studentGroup.guardians.values()) {
         await connection.execute(
@@ -1377,7 +1532,7 @@ app.post("/api/integrations/results/batches", async (req, res) => {
             guardian.id,
             studentGroup.studentId,
             guardian.phone,
-            messageText.replace("{guardian}", guardian.name || "Parent/Guardian"),
+            messageText.replace("{guardian}", guardian.name || "Mzazi/Mlezi"),
           ]
         );
         queuedMessages += 1;
@@ -1399,7 +1554,10 @@ app.post("/api/integrations/results/batches", async (req, res) => {
       data: {
         batchId,
         sourceBatchId: sanitizeString(batch.batchId),
-        receivedRecords: batch.students.reduce((total, student) => total + student.results.length, 0),
+        receivedRecords: batch.students.reduce(
+          (total, student) => total + student.results.filter((result) => !isExcludedSubject(result.subject)).length,
+          0
+        ),
         importedRecords,
         duplicateRecords,
         queuedMessages,
@@ -1454,6 +1612,7 @@ app.get("/api/reports/summary", authenticateToken, requireAcademicMaster, async 
       `SELECT subject, AVG(score) AS averageScore, MIN(score) AS lowestScore, MAX(score) AS highestScore,
               COUNT(*) AS entries
        FROM result_records
+       WHERE LOWER(TRIM(subject)) NOT IN ('computer studies', 'science')
        GROUP BY subject
        ORDER BY averageScore DESC`
     );
@@ -1514,10 +1673,16 @@ app.get("/api/reports/results", authenticateToken, requireAcademicMaster, async 
   try {
     const [rows] = await pool.query(
       `SELECT s.name AS studentName, s.admission_number AS admissionNumber,
-              s.class_name AS className, r.subject, r.score, r.grade, r.term, r.year, r.comment
+              s.class_name AS className, r.subject, r.score, r.grade, r.term, r.year,
+              r.comment, r.division, r.total_points AS totalPoints,
+              r.class_position AS classPosition,
+              r.import_batch_id AS importBatchId, b.exam_name AS examName
        FROM result_records r
        INNER JOIN students s ON s.id = r.student_id
-       ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
+       LEFT JOIN result_import_batches b ON b.id = r.import_batch_id
+       ${conditions.length
+    ? `WHERE ${conditions.join(" AND ")} AND LOWER(TRIM(r.subject)) NOT IN ('computer studies', 'science')`
+    : "WHERE LOWER(TRIM(r.subject)) NOT IN ('computer studies', 'science')"}
        ORDER BY s.class_name ASC, s.name ASC, r.year DESC, r.term ASC, r.subject ASC`,
       parameters
     );
@@ -1546,10 +1711,10 @@ app.get("/api/results", authenticateToken, requireAcademicMaster, async (req, re
   try {
     const [rows] = await pool.query(
       `SELECT s.id AS studentId, s.name AS studentName, s.admission_number AS admissionNumber, s.class_name AS className,
-              r.subject, r.score, r.grade, r.term, r.year, r.comment
+              r.subject, r.score, r.grade, r.term, r.year, r.comment, r.division
        FROM students s
        LEFT JOIN result_records r ON r.student_id = s.id
-       WHERE s.id = ?
+       WHERE s.id = ? AND (r.subject IS NULL OR LOWER(TRIM(r.subject)) NOT IN ('computer studies', 'science'))
        ORDER BY r.year DESC, r.term ASC`,
       [studentId]
     );
@@ -1586,10 +1751,10 @@ app.get("/api/results/:studentId", authenticateToken, requireAcademicMaster, asy
   try {
     const [rows] = await pool.query(
       `SELECT s.id AS studentId, s.name AS studentName, s.admission_number AS admissionNumber, s.class_name AS className,
-              r.subject, r.score, r.grade, r.term, r.year, r.comment
+              r.subject, r.score, r.grade, r.term, r.year, r.comment, r.division
        FROM students s
        LEFT JOIN result_records r ON r.student_id = s.id
-       WHERE s.id = ?
+       WHERE s.id = ? AND (r.subject IS NULL OR LOWER(TRIM(r.subject)) NOT IN ('computer studies', 'science'))
        ORDER BY r.year DESC, r.term ASC`,
       [studentId]
     );
@@ -1626,10 +1791,10 @@ app.get("/api/students/:studentId/results", authenticateToken, requireAcademicMa
   try {
     const [rows] = await pool.query(
       `SELECT s.id AS studentId, s.name AS studentName, s.admission_number AS admissionNumber, s.class_name AS className,
-              r.subject, r.score, r.grade, r.term, r.year, r.comment
+              r.subject, r.score, r.grade, r.term, r.year, r.comment, r.division
        FROM students s
        LEFT JOIN result_records r ON r.student_id = s.id
-       WHERE s.id = ?
+       WHERE s.id = ? AND (r.subject IS NULL OR LOWER(TRIM(r.subject)) NOT IN ('computer studies', 'science'))
        ORDER BY r.year DESC, r.term ASC`,
       [studentId]
     );
@@ -1708,13 +1873,29 @@ app.get("/api/integrations/batches", authenticateToken, requireAdmin, async (req
 
   try {
     const [rows] = await pool.query(
-      `SELECT id, source_system AS sourceSystem, source_batch_id AS sourceBatchId,
-              exam_name AS examName, term, year, status, received_records AS receivedRecords,
-              imported_records AS importedRecords, duplicate_records AS duplicateRecords,
-              queued_messages AS queuedMessages, missing_contacts AS missingContacts,
-              received_at AS receivedAt, completed_at AS completedAt
-       FROM result_import_batches
-       ORDER BY received_at DESC
+      `SELECT b.id, b.source_system AS sourceSystem, b.source_batch_id AS sourceBatchId,
+              b.exam_name AS examName, b.term, b.year, b.status,
+              b.received_records AS receivedRecords, b.imported_records AS importedRecords,
+              b.duplicate_records AS duplicateRecords, b.queued_messages AS queuedMessages,
+              b.missing_contacts AS missingContacts, b.received_at AS receivedAt,
+              b.completed_at AS completedAt,
+              COALESCE(sms.pendingSmsCount, 0) AS pendingSmsCount,
+              COALESCE(sms.processingSmsCount, 0) AS processingSmsCount,
+              COALESCE(sms.sentSmsCount, 0) AS sentSmsCount,
+              COALESCE(sms.deliveredSmsCount, 0) AS deliveredSmsCount,
+              COALESCE(sms.failedSmsCount, 0) AS failedSmsCount
+       FROM result_import_batches b
+       LEFT JOIN (
+         SELECT import_batch_id,
+                SUM(status = 'PENDING') AS pendingSmsCount,
+                SUM(status = 'PROCESSING') AS processingSmsCount,
+                SUM(status = 'SENT') AS sentSmsCount,
+                SUM(status = 'DELIVERED') AS deliveredSmsCount,
+                SUM(status = 'FAILED') AS failedSmsCount
+         FROM sms_outbox
+         GROUP BY import_batch_id
+       ) sms ON sms.import_batch_id = b.id
+       ORDER BY b.received_at DESC
        LIMIT ?`,
       [limit]
     );
@@ -1726,6 +1907,202 @@ app.get("/api/integrations/batches", authenticateToken, requireAdmin, async (req
       success: false,
       message: "Unable to load result import history.",
     });
+  }
+});
+
+app.post("/api/integrations/batches/:batchId/queue-sms", authenticateToken, requireSystemAdmin, async (req, res) => {
+  const batchId = parsePositiveInteger(req.params.batchId, null);
+  if (!batchId) {
+    return res.status(400).json({ success: false, message: "A valid results batch ID is required." });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const [batches] = await connection.execute(
+      `SELECT id, status, exam_name AS examName, term, year
+       FROM result_import_batches
+       WHERE id = ?
+       FOR UPDATE`,
+      [batchId]
+    );
+    if (!batches.length) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: "Results batch not found." });
+    }
+    if (batches[0].status !== "COMPLETED") {
+      await connection.rollback();
+      return res.status(409).json({ success: false, message: "SMS can only be queued for a completed results batch." });
+    }
+
+    const [resultRows] = await connection.execute(
+      `SELECT r.student_id AS studentId, s.name AS studentName,
+              s.class_name AS className, r.subject, r.score, r.grade, r.division,
+              r.total_points AS totalPoints, r.class_position AS classPosition
+       FROM result_records r
+       JOIN students s ON s.id = r.student_id
+       WHERE r.import_batch_id = ?
+         AND LOWER(TRIM(r.subject)) NOT IN ('computer studies', 'science')
+       ORDER BY r.student_id ASC, r.id ASC`,
+      [batchId]
+    );
+    if (!resultRows.length) {
+      await connection.rollback();
+      return res.status(409).json({ success: false, message: "This batch has no imported results to notify." });
+    }
+
+    const [guardianRows] = await connection.execute(
+      `SELECT DISTINCT ps.student_id AS studentId, p.id AS parentId,
+              p.full_name AS parentName, p.phone_number AS phone
+       FROM result_records r
+       JOIN parent_students ps ON ps.student_id = r.student_id
+       JOIN parents p ON p.id = ps.parent_id AND p.status = 'active'
+       WHERE r.import_batch_id = ?`,
+      [batchId]
+    );
+    const [existingRows] = await connection.execute(
+      `SELECT parent_id AS parentId, student_id AS studentId
+       FROM sms_outbox
+       WHERE import_batch_id = ?
+       FOR UPDATE`,
+      [batchId]
+    );
+
+    const studentGroups = new Map();
+    for (const row of resultRows) {
+      const studentId = String(row.studentId);
+      if (!studentGroups.has(studentId)) {
+        studentGroups.set(studentId, {
+          studentId: row.studentId,
+          studentName: row.studentName,
+          className: row.className,
+          division: row.division || null,
+          totalPoints: row.totalPoints ?? null,
+          position: row.classPosition ?? null,
+          results: [],
+          guardians: new Map(),
+        });
+      }
+      studentGroups.get(studentId).results.push(row);
+    }
+
+    for (const guardian of guardianRows) {
+      const phone = normalizePhoneNumber(guardian.phone);
+      const studentGroup = studentGroups.get(String(guardian.studentId));
+      if (phone && studentGroup) {
+        studentGroup.guardians.set(String(guardian.parentId), {
+          id: guardian.parentId,
+          name: guardian.parentName,
+          phone,
+        });
+      }
+    }
+
+    const existingPairs = new Set(
+      existingRows.map((row) => `${row.parentId}:${row.studentId}`)
+    );
+    assignClassPositions([...studentGroups.values()]);
+    let newQueuedMessages = 0;
+    let missingContacts = 0;
+
+    for (const studentGroup of studentGroups.values()) {
+      if (!studentGroup.guardians.size) {
+        missingContacts += 1;
+        continue;
+      }
+
+      const messageText = buildSwahiliResultsMessage({
+        guardian: "{guardian}",
+        studentName: studentGroup.studentName,
+        examName: batches[0].examName,
+        term: batches[0].term,
+        year: batches[0].year,
+        results: studentGroup.results,
+        division: studentGroup.division,
+        totalPoints: studentGroup.totalPoints,
+        averageScore: studentGroup.averageScore,
+        totalScore: studentGroup.totalScore,
+        position: studentGroup.position,
+        classSize: studentGroup.classSize,
+      });
+
+      for (const guardian of studentGroup.guardians.values()) {
+        const pairKey = `${guardian.id}:${studentGroup.studentId}`;
+        if (existingPairs.has(pairKey)) continue;
+
+        const [insertResult] = await connection.execute(
+          `INSERT IGNORE INTO sms_outbox
+             (import_batch_id, parent_id, student_id, recipient_phone, message_text, status)
+           VALUES (?, ?, ?, ?, ?, 'PENDING')`,
+          [
+            batchId,
+            guardian.id,
+            studentGroup.studentId,
+            guardian.phone,
+            messageText.replace("{guardian}", guardian.name || "Mzazi/Mlezi"),
+          ]
+        );
+        if (insertResult.affectedRows) {
+          newQueuedMessages += 1;
+          existingPairs.add(pairKey);
+        }
+      }
+    }
+
+    await connection.execute(
+      `UPDATE result_import_batches
+       SET queued_messages = (
+             SELECT COUNT(*) FROM sms_outbox WHERE import_batch_id = ?
+           ),
+           missing_contacts = ?
+       WHERE id = ?`,
+      [batchId, missingContacts, batchId]
+    );
+    const [statusRows] = await connection.execute(
+      `SELECT COUNT(*) AS totalQueuedMessages,
+              COALESCE(SUM(status = 'PENDING'), 0) AS pendingSmsCount,
+              COALESCE(SUM(status = 'PROCESSING'), 0) AS processingSmsCount,
+              COALESCE(SUM(status = 'SENT'), 0) AS sentSmsCount,
+              COALESCE(SUM(status = 'DELIVERED'), 0) AS deliveredSmsCount,
+              COALESCE(SUM(status = 'FAILED'), 0) AS failedSmsCount
+       FROM sms_outbox
+       WHERE import_batch_id = ?`,
+      [batchId]
+    );
+    await connection.commit();
+
+    const status = statusRows[0];
+    const deliveryNote = smsDeliveryConfigured
+      ? " The SMS worker will process the new messages."
+      : " SMS delivery is disabled, so the messages will remain pending.";
+    return res.json({
+      success: true,
+      message: `${newQueuedMessages} new SMS message(s) queued; ${missingContacts} learner(s) still have no active guardian with a valid phone number.${deliveryNote}`,
+      data: {
+        batchId,
+        newQueuedMessages,
+        totalQueuedMessages: Number(status.totalQueuedMessages),
+        missingContacts,
+        pendingSmsCount: Number(status.pendingSmsCount),
+        processingSmsCount: Number(status.processingSmsCount),
+        sentSmsCount: Number(status.sentSmsCount),
+        deliveredSmsCount: Number(status.deliveredSmsCount),
+        failedSmsCount: Number(status.failedSmsCount),
+      },
+    });
+  } catch (error) {
+    if (connection) {
+      await connection.rollback().catch(() => {});
+    }
+    console.error("Queueing SMS for an imported batch failed:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to queue SMS for this results batch.",
+    });
+  } finally {
+    if (connection) connection.release();
   }
 });
 

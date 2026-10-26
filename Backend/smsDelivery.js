@@ -1,4 +1,3 @@
-const axios = require("axios");
 const crypto = require("crypto");
 const pool = require("./config/db");
 const { isConfiguredSecret } = require("./config/secrets");
@@ -74,10 +73,7 @@ async function processDeliveryReport(report) {
 }
 
 function getProviderError(error) {
-  if (error.response?.status) {
-    return `Africa's Talking request failed with HTTP ${error.response.status}.`;
-  }
-  if (error.code === "ECONNABORTED") {
+  if (error.name === "AbortError" || error.name === "TimeoutError" || error.code === "ETIMEDOUT") {
     return "Africa's Talking did not respond before the request timed out.";
   }
   return "Could not connect to Africa's Talking.";
@@ -93,19 +89,32 @@ async function sendSms(message) {
 
   let response;
   try {
-    response = await axios.post(apiUrl, body.toString(), {
-      timeout: 20000,
+    response = await fetch(apiUrl, {
+      method: "POST",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/x-www-form-urlencoded",
         apiKey,
       },
+      body: body.toString(),
+      signal: AbortSignal.timeout(20000),
     });
   } catch (error) {
     throw new Error(getProviderError(error));
   }
 
-  const recipients = response.data?.SMSMessageData?.Recipients;
+  if (!response.ok) {
+    throw new Error(`Africa's Talking request failed with HTTP ${response.status}.`);
+  }
+
+  let payload;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    throw new Error("Africa's Talking returned an unexpected SMS response.");
+  }
+
+  const recipients = payload?.SMSMessageData?.Recipients;
   if (!Array.isArray(recipients) || recipients.length !== 1) {
     throw new Error("Africa's Talking returned an unexpected SMS response.");
   }

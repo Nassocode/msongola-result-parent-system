@@ -43,7 +43,6 @@
           </button>
         </form>
         <p id="loginMessage" class="form-message" role="status" aria-live="polite"></p>
-        <p class="demo-hint">Development account: admin@msongola.com / admin123</p>
       </section>
       <footer class="developer-footer login-developer-footer">
         <span>Developed By : Nassoro Amour Shekulamba</span>
@@ -143,7 +142,7 @@
               </button>
               <button class="academic-quick-action" type="button" data-open-view="integrationView">
                 <span class="academic-quick-action-icon academic-quick-action-icon-import" aria-hidden="true">⇄</span>
-                <span><strong>Track result imports</strong><small>Check the latest approved result batches</small></span>
+                <span><strong>Track imports & SMS</strong><small>Check result batches and parent SMS progress</small></span>
                 <span class="academic-quick-action-arrow" aria-hidden="true">→</span>
               </button>
             </div>
@@ -206,8 +205,8 @@
               </div>
               <div class="table-scroll">
                 <table>
-                  <thead><tr><th>Status</th><th>Parent / guardian</th><th>Learner</th><th>Exam</th><th>Last activity</th></tr></thead>
-                  <tbody id="adminSmsActivityBody"><tr><td colspan="5" class="empty-state">Loading SMS activity…</td></tr></tbody>
+                  <thead><tr><th>Status</th><th>Parent / guardian</th><th>Learner</th><th>Exam</th><th>Last activity</th><th>Message</th></tr></thead>
+                  <tbody id="adminSmsActivityBody"><tr><td colspan="6" class="empty-state">Loading SMS activity…</td></tr></tbody>
                 </table>
               </div>
             </section>
@@ -443,8 +442,8 @@
             </div>
             <div class="table-scroll">
               <table>
-                <thead><tr><th>Learner</th><th>Admission no.</th><th>Class</th><th>Subject</th><th>Score</th><th>Grade</th><th>Term</th><th>Year</th><th>Comment</th></tr></thead>
-                <tbody id="resultsReportTableBody"><tr><td colspan="9" class="empty-state">Load a report to view results.</td></tr></tbody>
+                <thead><tr><th>Learner</th><th>Admission no.</th><th>Class</th><th>Subject</th><th>Score</th><th>Grade</th><th>Average</th><th>Division</th><th>Total points</th><th>Class position</th><th>Term</th><th>Year</th><th>Comment</th></tr></thead>
+                <tbody id="resultsReportTableBody"><tr><td colspan="13" class="empty-state">Load a report to view results.</td></tr></tbody>
               </table>
             </div>
           </section>
@@ -494,7 +493,7 @@
           </section>
           <section class="panel integration-history-panel">
             <div class="panel-heading">
-              <div><h3>Import history</h3><p class="muted">Review results batches received from the school system</p></div>
+              <div><h3>Import history</h3><p class="muted">Review results batches and SMS status totals. “Accepted” means the provider accepted the SMS; it does not confirm delivery.</p></div>
               <span class="count-chip" id="integrationBatchCount">0 batches</span>
             </div>
             <div class="integration-history-controls">
@@ -515,8 +514,8 @@
             </div>
             <div class="table-scroll">
               <table>
-                <thead><tr><th>Exam</th><th>Source batch</th><th>Source system</th><th>Received</th><th>Results</th><th>Duplicates</th><th data-admin-only>SMS queued</th><th>Missing contacts</th><th>Status</th></tr></thead>
-                <tbody id="integrationBatchTableBody"><tr><td colspan="9" class="empty-state">Loading import history…</td></tr></tbody>
+                <thead><tr><th>Exam</th><th>Source batch</th><th>Source system</th><th>Received</th><th>Results</th><th>Duplicates</th><th>SMS status</th><th>Missing contacts</th><th>Status</th><th data-admin-only>Action</th></tr></thead>
+                <tbody id="integrationBatchTableBody"><tr><td colspan="10" class="empty-state">Loading import history…</td></tr></tbody>
               </table>
             </div>
           </section>
@@ -741,6 +740,6 @@
       </main>
     </div>
 
-    <script src="./assets/app.js"></script>
+    <script src="./assets/app.js?v=20261015"></script>
   </body>
 </html>

@@ -35,6 +35,7 @@ const staffAccountTableBody = document.getElementById("staffAccountTableBody");
 const staffAccountSearch = document.getElementById("staffAccountSearch");
 const staffRoleFilter = document.getElementById("staffRoleFilter");
 const refreshStaffAccountsButton = document.getElementById("refreshStaffAccountsButton");
+const appBasePath = new URL(".", document.baseURI).pathname.replace(/\/$/, "");
 const pageTitles = {
   overviewView: "Overview",
   studentsView: "Learners & results",
@@ -87,7 +88,11 @@ async function requestJson(url, options = {}) {
 
   let response;
   try {
-    response = await fetch(url, { ...options, headers });
+    const requestUrl = new URL(url, window.location.href);
+    if (requestUrl.origin === window.location.origin && requestUrl.pathname.startsWith("/api/")) {
+      requestUrl.pathname = `${appBasePath}${requestUrl.pathname}`;
+    }
+    response = await fetch(requestUrl, { ...options, headers });
   } catch (error) {
     throw new Error("Unable to reach the server. Check that the backend is running.");
   }
@@ -191,7 +196,7 @@ function renderStaffProfile() {
       ["Academic overview", "Review learner, result, and subject performance summaries."],
       ["Learners and results", "Register learners, maintain guardian contacts, and review academic records."],
       ["Results reports", "Filter, export, and print academic result reports."],
-      ["Results import history", "Review approved result batches received by the school."],
+      ["Results import history", "Review approved result batches and aggregate parent SMS status totals."],
     ];
 
   document.getElementById("profileAvatar").textContent = getInitials(name);
@@ -231,7 +236,7 @@ function showApplication(user) {
     isAdmin ? "Approved results integration" : "Results import history";
   document.getElementById("integrationViewDescription").textContent = isAdmin
     ? "The school results system submits finalized batches. No parent accounts are created."
-    : "Review approved result batches imported from the school results system.";
+    : "Review approved result batches and parent SMS progress from the school results system.";
   const primaryAction = document.getElementById("dashboardPrimaryAction");
   primaryAction.dataset.openView = isAdmin ? "staffAccountsView" : "studentsView";
   primaryAction.innerHTML = isAdmin
@@ -324,6 +329,29 @@ function renderBatches(batches) {
   `).join("");
 }
 
+function renderBatchSmsStatus(batch) {
+  const statuses = [
+    ["Queued", "pendingSmsCount", "pending"],
+    ["Sending", "processingSmsCount", "processing"],
+    ["Accepted", "sentSmsCount", "sent"],
+    ["Delivered", "deliveredSmsCount", "delivered"],
+    ["Failed", "failedSmsCount", "failed"],
+  ].map(([label, property, className]) => ({
+    label,
+    className,
+    count: Math.max(0, Math.trunc(Number(batch[property]) || 0)),
+  }));
+
+  if (statuses.every((status) => status.count === 0)) {
+    return '<span class="batch-sms-empty">No SMS queued</span>';
+  }
+
+  const accessibleSummary = statuses.map(({ label, count }) => `${label}: ${count}`).join(", ");
+  return `<div class="batch-sms-status" aria-label="${escapeHtml(accessibleSummary)}">${statuses.map(({ label, className, count }) => `
+    <span class="batch-sms-count status-${className}">${label} ${count}</span>
+  `).join("")}</div>`;
+}
+
 function renderIntegrationBatches() {
   const isAdmin = String(currentUser?.role || "").toUpperCase() === "ADMIN";
   const query = integrationBatchSearch.value.trim().toLowerCase();
@@ -346,7 +374,7 @@ function renderIntegrationBatches() {
     const message = integrationBatches.length
       ? "No imports match your search and status filters."
       : "No results batches received yet.";
-    integrationBatchTableBody.innerHTML = `<tr><td colspan="9" class="empty-state">${message}</td></tr>`;
+    integrationBatchTableBody.innerHTML = `<tr><td colspan="10" class="empty-state">${message}</td></tr>`;
     return;
   }
 
@@ -358,9 +386,12 @@ function renderIntegrationBatches() {
       <td>${formatDate(batch.receivedAt)}${batch.completedAt ? `<small class="table-subtext">Finished ${formatDate(batch.completedAt)}</small>` : ""}</td>
       <td>${escapeHtml(batch.importedRecords)} / ${escapeHtml(batch.receivedRecords)}</td>
       <td>${escapeHtml(batch.duplicateRecords)}</td>
-      <td data-admin-only class="${isAdmin ? "" : "hidden"}">${escapeHtml(batch.queuedMessages)}</td>
+      <td>${renderBatchSmsStatus(batch)}</td>
       <td>${escapeHtml(batch.missingContacts)}</td>
       <td><span class="table-status status-${escapeHtml(String(batch.status).toLowerCase())}">${escapeHtml(batch.status)}</span></td>
+      <td data-admin-only class="${isAdmin ? "" : "hidden"}">${isAdmin && batch.status === "COMPLETED"
+        ? `<button class="button button-secondary button-compact" type="button" data-queue-batch-sms="${escapeHtml(batch.id)}">Queue for contacts</button>`
+        : "—"}</td>
     </tr>
   `).join("");
 }
@@ -672,7 +703,7 @@ async function loadBatches() {
 function renderAdminSmsActivity(messages) {
   const body = document.getElementById("adminSmsActivityBody");
   if (!messages.length) {
-    body.innerHTML = '<tr><td colspan="5" class="empty-state">No parent SMS activity yet.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="empty-state">No parent SMS activity yet.</td></tr>';
     return;
   }
   body.innerHTML = messages.map((message) => `
@@ -682,6 +713,7 @@ function renderAdminSmsActivity(messages) {
       <td>${escapeHtml(message.studentName)}</td>
       <td>${escapeHtml(message.examName)}</td>
       <td>${formatDate(message.sentAt || message.createdAt)}</td>
+      <td><details class="message-details"><summary>Preview</summary><p>${escapeHtml(message.messageText)}</p></details></td>
     </tr>
   `).join("");
 }
@@ -690,7 +722,7 @@ async function loadIntegrationBatches() {
   const requestId = ++integrationBatchesRequestId;
   refreshIntegrationBatchesButton.disabled = true;
   refreshIntegrationBatchesButton.setAttribute("aria-busy", "true");
-  integrationBatchTableBody.innerHTML = '<tr><td colspan="9" class="empty-state">Loading import history…</td></tr>';
+  integrationBatchTableBody.innerHTML = '<tr><td colspan="10" class="empty-state">Loading import history…</td></tr>';
 
   try {
     const response = await requestJson("/api/integrations/batches?limit=100");
@@ -699,7 +731,7 @@ async function loadIntegrationBatches() {
     renderIntegrationBatches();
   } catch (error) {
     if (requestId === integrationBatchesRequestId) {
-      integrationBatchTableBody.innerHTML = `<tr><td colspan="9" class="empty-state">${escapeHtml(error.message)}</td></tr>`;
+      integrationBatchTableBody.innerHTML = `<tr><td colspan="10" class="empty-state">${escapeHtml(error.message)}</td></tr>`;
       document.getElementById("integrationBatchCount").textContent = "History unavailable";
     }
   } finally {
@@ -1212,6 +1244,79 @@ function setReportFilterOptions(id, label, values) {
   select.value = options.some((value) => String(value) === selectedValue) ? selectedValue : "";
 }
 
+function getReportPerformance() {
+  const assessments = new Map();
+  for (const row of academicReportRows) {
+    const assessmentKey = JSON.stringify([
+      row.className,
+      row.importBatchId ?? row.examName ?? "",
+      row.term,
+      row.year,
+    ]);
+    const learners = assessments.get(assessmentKey) || new Map();
+    const learnerKey = row.admissionNumber;
+    const learner = learners.get(learnerKey) || {
+      results: [],
+      division: row.division || null,
+      totalPoints: row.totalPoints !== null && row.totalPoints !== undefined && Number.isInteger(Number(row.totalPoints))
+        ? Number(row.totalPoints)
+        : null,
+      classPosition: Number.isInteger(Number(row.classPosition)) && Number(row.classPosition) > 0
+        ? Number(row.classPosition)
+        : null,
+    };
+    learner.results.push(row);
+    if (!learner.division && row.division) learner.division = row.division;
+    if (learner.totalPoints === null && row.totalPoints !== null && row.totalPoints !== undefined &&
+      Number.isInteger(Number(row.totalPoints))) {
+      learner.totalPoints = Number(row.totalPoints);
+    }
+    if (learner.classPosition === null && Number.isInteger(Number(row.classPosition)) && Number(row.classPosition) > 0) {
+      learner.classPosition = Number(row.classPosition);
+    }
+    learners.set(learnerKey, learner);
+    assessments.set(assessmentKey, learners);
+  }
+
+  const performance = new Map();
+  for (const [assessmentKey, learners] of assessments) {
+    const rankedLearners = [...learners.entries()].map(([admissionNumber, learner]) => {
+      const totalScore = learner.results.reduce((total, row) => total + Number(row.score || 0), 0);
+      return {
+        admissionNumber,
+        averageScore: learner.results.length ? totalScore / learner.results.length : null,
+        division: learner.division,
+        totalPoints: learner.totalPoints,
+        classPosition: learner.classPosition,
+      };
+    }).filter((learner) => learner.averageScore !== null)
+      .sort((left, right) => right.averageScore - left.averageScore);
+    let position = 0;
+    let previousAverage = null;
+    rankedLearners.forEach((learner, index) => {
+      if (previousAverage === null || Math.abs(learner.averageScore - previousAverage) > 1e-9) {
+        position = index + 1;
+        previousAverage = learner.averageScore;
+      }
+      performance.set(JSON.stringify([assessmentKey, learner.admissionNumber]), {
+        ...learner,
+        position: learner.classPosition ?? position,
+      });
+    });
+  }
+  return performance;
+}
+
+function reportPerformanceFor(row, performance) {
+  const assessmentKey = JSON.stringify([
+    row.className,
+    row.importBatchId ?? row.examName ?? "",
+    row.term,
+    row.year,
+  ]);
+  return performance.get(JSON.stringify([assessmentKey, row.admissionNumber])) || {};
+}
+
 function renderResultsReport() {
   const classFilter = document.getElementById("reportClassFilter").value;
   const subjectFilter = document.getElementById("reportSubjectFilter").value;
@@ -1223,6 +1328,7 @@ function renderResultsReport() {
     && (!termFilter || row.term === termFilter)
     && (!yearFilter || String(row.year) === yearFilter)
   ));
+  const performance = getReportPerformance();
   const learnerCount = new Set(rows.map((row) => row.admissionNumber)).size;
   const averageScore = rows.length
     ? rows.reduce((total, row) => total + Number(row.score || 0), 0) / rows.length
@@ -1252,22 +1358,31 @@ function renderResultsReport() {
     `Generated ${new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(new Date())}`;
 
   if (!rows.length) {
-    resultsReportTableBody.innerHTML = `<tr><td colspan="9" class="empty-state">${academicReportRows.length
+    resultsReportTableBody.innerHTML = `    <tr><td colspan="13" class="empty-state">${academicReportRows.length
       ? "No results match the selected filters."
       : "No learner results are available yet."}</td></tr>`;
     return;
   }
   resultsReportTableBody.innerHTML = rows.map((row) => `
     <tr>
+      ${(() => {
+    const learnerPerformance = reportPerformanceFor(row, performance);
+    return `
       <td>${escapeHtml(row.studentName)}</td>
       <td>${escapeHtml(row.admissionNumber)}</td>
       <td>${escapeHtml(row.className)}</td>
       <td>${escapeHtml(row.subject)}</td>
       <td>${escapeHtml(row.score)}%</td>
       <td><span class="grade-badge">${escapeHtml(row.grade)}</span></td>
+      <td>${learnerPerformance.averageScore === undefined ? "—" : `${learnerPerformance.averageScore.toFixed(1)}%`}</td>
+      <td>${escapeHtml(learnerPerformance.division || "—")}</td>
+      <td>${learnerPerformance.totalPoints === null || learnerPerformance.totalPoints === undefined ? "—" : learnerPerformance.totalPoints}</td>
+      <td>${learnerPerformance.position === undefined ? "—" : learnerPerformance.position}</td>
       <td>${escapeHtml(row.term)}</td>
       <td>${escapeHtml(row.year)}</td>
       <td>${escapeHtml(row.comment || "—")}</td>
+    `;
+  })()}
     </tr>
   `).join("");
 }
@@ -1276,7 +1391,7 @@ async function loadResultsReport() {
   const refreshButton = document.getElementById("refreshResultsReportButton");
   refreshButton.disabled = true;
   refreshButton.setAttribute("aria-busy", "true");
-  resultsReportTableBody.innerHTML = '<tr><td colspan="9" class="empty-state">Loading academic results…</td></tr>';
+  resultsReportTableBody.innerHTML = '<tr><td colspan="13" class="empty-state">Loading academic results…</td></tr>';
   try {
     const response = await requestJson("/api/reports/results");
     academicReportRows = Array.isArray(response.data) ? response.data : [];
@@ -1295,7 +1410,7 @@ async function loadResultsReport() {
     document.getElementById("exportResultsReportButton").disabled = true;
     document.getElementById("printResultsReportButton").disabled = true;
     resultsReportTableBody.innerHTML =
-      `<tr><td colspan="9" class="empty-state">${escapeHtml(error.message)}</td></tr>`;
+      `<tr><td colspan="13" class="empty-state">${escapeHtml(error.message)}</td></tr>`;
     showAppMessage(error.message, true);
   } finally {
     refreshButton.disabled = false;
@@ -1314,6 +1429,7 @@ function exportResultsReport() {
     && (!termFilter || row.term === termFilter)
     && (!yearFilter || String(row.year) === yearFilter)
   ));
+  const performance = getReportPerformance();
   if (!rows.length) {
     showAppMessage("There are no results to export for the selected filters.", true);
     return;
@@ -1326,6 +1442,10 @@ function exportResultsReport() {
     ["Subject", "subject"],
     ["Score", "score"],
     ["Grade", "grade"],
+    ["Average", "averageScore"],
+    ["Division", "division"],
+    ["Total points", "totalPoints"],
+    ["Class position", "position"],
     ["Term", "term"],
     ["Year", "year"],
     ["Comment", "comment"],
@@ -1337,7 +1457,15 @@ function exportResultsReport() {
   };
   const csv = [
     columns.map(([heading]) => csvCell(heading)).join(","),
-    ...rows.map((row) => columns.map(([, key]) => csvCell(row[key])).join(",")),
+    ...rows.map((row) => {
+      const learnerPerformance = reportPerformanceFor(row, performance);
+      return columns.map(([, key]) => csvCell(
+        key === "averageScore" ? learnerPerformance.averageScore?.toFixed(1) :
+          key === "division" ? learnerPerformance.division :
+            key === "totalPoints" ? learnerPerformance.totalPoints :
+            key === "position" ? learnerPerformance.position : row[key]
+      )).join(",");
+    }),
   ].join("\r\n");
   const file = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(file);
@@ -1752,6 +1880,33 @@ outboxTableBody.addEventListener("click", async (event) => {
     });
     showAppMessage(response.message || "SMS queued for retry.");
     await loadOutbox();
+  } catch (error) {
+    showAppMessage(error.message, true);
+    button.disabled = false;
+  }
+});
+
+integrationBatchTableBody.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-queue-batch-sms]");
+  if (!button || button.disabled) return;
+
+  const batch = integrationBatches.find(
+    (entry) => String(entry.id) === String(button.dataset.queueBatchSms)
+  );
+  if (!batch || !window.confirm(
+    `Queue result SMS for active, valid guardian contacts for ${batch.examName} (${batch.term} ${batch.year})? Existing batch/guardian messages will not be duplicated.`
+  )) {
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const response = await requestJson(
+      `/api/integrations/batches/${encodeURIComponent(batch.id)}/queue-sms`,
+      { method: "POST" }
+    );
+    showAppMessage(response.message || "SMS queued for this results batch.");
+    await loadIntegrationBatches();
   } catch (error) {
     showAppMessage(error.message, true);
     button.disabled = false;
